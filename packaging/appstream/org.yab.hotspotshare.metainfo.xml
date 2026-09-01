@@ -22,10 +22,10 @@
     </ul>
   </description>
   <launchable type="desktop-id">hotspot-share.desktop</launchable>
-  <url type="homepage">https://github.com/yabsira-haile/hotspot-share</url>
-  <url type="bugtracker">https://github.com/yabsira-haile/hotspot-share/issues</url>
+  <url type="homepage">https://github.com/penguinatnight/hotspot-share</url>
+  <url type="bugtracker">https://github.com/penguinatnight/hotspot-share/issues</url>
   <developer id="org.yab.hotspotshare">
-    <name>Hotspot Share Contributors</name>
+    <name>Yeabsra Henok</name>
   </developer>
   <provides>
     <binary>hotspot-share</binary>
