@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yabsira-haile/hotspot-share/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License"></a>
+  <a href="https://github.com/penguinatnight/hotspot-share/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Android%20%7C%20iOS-informational.svg" alt="Platforms">
   <img src="https://img.shields.io/badge/Ubuntu%20App%20Center-Ready-orange.svg" alt="Ubuntu App Center">
   <img src="https://img.shields.io/badge/Confinement-Strict-green.svg" alt="Confinement">
@@ -92,7 +92,7 @@ hotspot-share/
 ### Method 1: 1-Command Installer (Recommended)
 
 ```bash
-git clone https://github.com/yabsira-haile/hotspot-share.git
+git clone https://github.com/penguinatnight/hotspot-share.git
 cd hotspot-share
 ./install.sh
 ```

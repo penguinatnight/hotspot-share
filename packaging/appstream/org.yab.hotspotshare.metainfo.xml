@@ -44,14 +44,20 @@
     <keyword>localsend</keyword>
     <keyword>clipboard</keyword>
   </keywords>
+  <icon type="stock">hotspot-share</icon>
+  <icon type="remote">https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/icons/hicolor/512x512/apps/hotspot-share.png</icon>
   <screenshots>
     <screenshot type="default">
       <caption>Hotspot Share desktop user interface with active device dashboard and QR code</caption>
-      <image>https://raw.githubusercontent.com/yabsira-haile/hotspot-share/main/assets/screenshots/screenshot1.png</image>
+      <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot1.png</image>
     </screenshot>
     <screenshot>
       <caption>Mobile web app showing file upload queue and real-time transfer speedometer</caption>
-      <image>https://raw.githubusercontent.com/yabsira-haile/hotspot-share/main/assets/screenshots/screenshot2.png</image>
+      <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot2.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Bi-directional multimodal clipboard synchronization and file explorer</caption>
+      <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot3.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>

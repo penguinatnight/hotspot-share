@@ -24,6 +24,12 @@ debian/hotspot-share/
 debian/files
 debian/*.substvars
 debian/*.debhelper.log
+debian/*-stamp
+
+# Snapcraft build artifacts
+parts/
+prime/
+stage/
 
 # Logs & temporary files
 *.log

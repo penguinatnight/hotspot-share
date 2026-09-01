@@ -6,7 +6,8 @@ def notify(title: str, message: str, urgency: str = "normal", icon_path: str = N
     if not shutil.which("notify-send"):
         return
 
-    icon = icon_path or str(get_icon_file(128))
+    icon_p = get_icon_file(128)
+    icon = icon_path or (str(icon_p) if icon_p else "")
     cmd = [
         "notify-send",
         "-a", "Hotspot Share",
