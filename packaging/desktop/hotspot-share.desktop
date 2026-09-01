@@ -1,0 +1,23 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Hotspot Share
+GenericName=File Transfer & Clipboard Sync
+Comment=High-speed local Wi-Fi file sharing & clipboard synchronization between Phone and PC
+Exec=hotspot-share-gui %F
+Icon=hotspot-share
+Terminal=false
+Categories=Utility;FileTransfer;
+StartupNotify=true
+StartupWMClass=hotspot-share
+MimeType=application/octet-stream;
+Keywords=hotspot;share;transfer;wifi;phone;files;clipboard;HotspotShare;hotspot-share;localsend;airdrop;quickshare;
+Actions=OpenFolder;HeadlessMode;
+
+[Desktop Action OpenFolder]
+Name=Open Shared Folder
+Exec=xdg-open %U
+
+[Desktop Action HeadlessMode]
+Name=Start Headless Terminal Server
+Exec=hotspot-share

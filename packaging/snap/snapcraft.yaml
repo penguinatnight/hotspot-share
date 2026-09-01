@@ -1,0 +1,72 @@
+name: hotspot-share
+base: core22
+version: '2.0.0'
+summary: High-speed local Wi-Fi file sharing & multimodal clipboard sync
+description: |
+  Hotspot Share is a high-performance, local Wi-Fi file transfer and clipboard 
+  synchronization tool. It allows rapid sharing between Linux PCs and mobile 
+  phones without requiring cloud servers, account logins, or phone app installation.
+
+grade: stable
+confinement: strict
+
+apps:
+  hotspot-share:
+    command: bin/hotspot-share
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+      - network-manager
+
+  hotspot-share-gui:
+    command: bin/hotspot-share-gui
+    extensions: [gnome]
+    desktop: usr/share/applications/hotspot-share.desktop
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - unity7
+      - network-manager
+
+parts:
+  desktop-assets:
+    plugin: dump
+    source: .
+    organize:
+      packaging/desktop/hotspot-share.desktop: usr/share/applications/hotspot-share.desktop
+      packaging/appstream/org.yab.hotspotshare.metainfo.xml: usr/share/metainfo/org.yab.hotspotshare.metainfo.xml
+      assets/icons/hotspot-share.svg: usr/share/icons/hicolor/scalable/apps/hotspot-share.svg
+      assets/icons/hicolor/512x512/apps/hotspot-share.png: usr/share/icons/hicolor/512x512/apps/hotspot-share.png
+      web: usr/share/hotspot-share/web
+
+  backend:
+    plugin: python
+    source: .
+    build-packages:
+      - python3-setuptools
+      - python3-wheel
+    stage-packages:
+      - python3
+      - wl-clipboard
+      - xclip
+
+  gui:
+    plugin: make
+    source: .
+    build-packages:
+      - gcc
+      - pkg-config
+      - libgtk-3-dev
+      - libwebkit2gtk-4.1-dev
+    stage-packages:
+      - libgtk-3-0
+      - libwebkit2gtk-4.1-0
+      - libnotify4

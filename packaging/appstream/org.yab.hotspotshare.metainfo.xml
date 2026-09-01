@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.yab.hotspotshare</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Hotspot Share</name>
+  <summary>High-speed local Wi-Fi file sharing and clipboard synchronization</summary>
+  <description>
+    <p>
+      Hotspot Share is a lightning-fast, zero-cloud local file transfer and clipboard synchronization tool designed for Linux and mobile devices (Android, iOS).
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>High-throughput Wi-Fi 6 chunked file uploads and downloads with pause and resume support.</li>
+      <li>Instant bi-directional clipboard sync for text and images (Ctrl+V ready).</li>
+      <li>Pure browser-based mobile interface — no app installation required on the phone.</li>
+      <li>Interactive QR code scanning for effortless device pairing.</li>
+      <li>On-the-fly streaming directory zipping for downloading entire folders.</li>
+      <li>Optional 4-digit PIN pairing authentication for public networks.</li>
+      <li>Built-in Wi-Fi Hotspot management with NetworkManager.</li>
+      <li>Native desktop notifications, system tray indicator, and file manager integration.</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">hotspot-share.desktop</launchable>
+  <url type="homepage">https://github.com/yabsira-haile/hotspot-share</url>
+  <url type="bugtracker">https://github.com/yabsira-haile/hotspot-share/issues</url>
+  <developer id="org.yab.hotspotshare">
+    <name>Hotspot Share Contributors</name>
+  </developer>
+  <provides>
+    <binary>hotspot-share</binary>
+    <binary>hotspot-share-gui</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>FileTransfer</category>
+  </categories>
+  <keywords>
+    <keyword>share</keyword>
+    <keyword>transfer</keyword>
+    <keyword>hotspot</keyword>
+    <keyword>wifi</keyword>
+    <keyword>airdrop</keyword>
+    <keyword>localsend</keyword>
+    <keyword>clipboard</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Hotspot Share desktop user interface with active device dashboard and QR code</caption>
+      <image>https://raw.githubusercontent.com/yabsira-haile/hotspot-share/main/assets/screenshots/screenshot1.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Mobile web app showing file upload queue and real-time transfer speedometer</caption>
+      <image>https://raw.githubusercontent.com/yabsira-haile/hotspot-share/main/assets/screenshots/screenshot2.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="2.0.0" date="2026-09-01">
+      <description>
+        <p>Major release featuring:</p>
+        <ul>
+          <li>Modularized backend architecture with zero pip dependencies.</li>
+          <li>PIN code pairing authorization for public networks.</li>
+          <li>Dynamic port binding and XDG runtime file management.</li>
+          <li>System tray indicator and desktop notification support.</li>
+          <li>Nautilus right-click file sharing integration.</li>
+          <li>AppStream, Snapcraft, Flatpak, and Debian store packaging support.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>

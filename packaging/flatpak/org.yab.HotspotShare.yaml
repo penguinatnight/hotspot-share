@@ -1,0 +1,25 @@
+app-id: org.yab.HotspotShare
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+command: hotspot-share-gui
+
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --filesystem=xdg-download
+  - --filesystem=home
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.portal.Clipboard
+
+modules:
+  - name: hotspot-share
+    buildsystem: simple
+    build-commands:
+      - make build
+      - make install PREFIX=/app
+    sources:
+      - type: dir
+        path: ../../

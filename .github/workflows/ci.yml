@@ -1,0 +1,42 @@
+name: CI & App Validation
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build dependencies & validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev appstream desktop-file-utils
+
+      - name: Validate Desktop Entry
+        run: |
+          desktop-file-validate packaging/desktop/hotspot-share.desktop
+
+      - name: Validate AppStream Metadata
+        run: |
+          appstreamcli validate --no-net packaging/appstream/org.yab.hotspotshare.metainfo.xml
+
+      - name: Test Python CLI & Modules
+        run: |
+          python3 -m pip install .
+          hotspot-share --version
+
+      - name: Build Native Desktop GUI Launcher
+        run: |
+          make build
+          ls -la gui/hotspot-share-gui

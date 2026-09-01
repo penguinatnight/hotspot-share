@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C build artifacts
+*.o
+*.so
+gui/hotspot-share-gui
+hotspot-share-gui
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.snap
+*.deb
+*.tar.gz
+*.zip
+.flatpak-builder/
+_build/
+debian/.debhelper/
+debian/hotspot-share/
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
+
+# Logs & temporary files
+*.log
+.cache/
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
