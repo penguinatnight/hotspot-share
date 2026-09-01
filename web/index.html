@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Hotspot Share</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="shortcut icon" type="image/png" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="apple-touch-icon" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <div class="tabs-container">
+    <div class="slider-indicator" id="sliderIndicator"></div>
+    <button class="tab-btn active" id="btn-upload" onclick="switchTab('upload')">Upload</button>
+    <button class="tab-btn" id="btn-files" onclick="switchTab('files')">Files</button>
+    <button class="tab-btn" id="btn-clip" onclick="switchTab('clip')">Clipboard</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="btn-theme" onclick="manualRefresh()" id="refreshBtn" title="Refresh status, files & clipboard">
+      <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+    <button class="btn-theme" onclick="toggleTheme()" id="themeBtn" title="Toggle Light/Dark mode">
+      <svg id="themeIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="system-status-bar">
+    <div class="status-row-top">
+      <div class="device-presence">
+        <div class="beacon-dot" id="beaconDot"></div>
+        <span id="deviceNameLabel" style="cursor:pointer;" onclick="openDeviceSettingsModal()">Checking connection...</span>
+        <button class="btn-rename" onclick="openDeviceSettingsModal()" title="Device details and storage configuration">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span>Device / Storage</span>
+        </button>
+        <button class="btn-rename" onclick="manualRefresh()" title="Refresh connection & storage">
+          <svg viewBox="0 0 24 24" width="13" height="13" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+      <div class="storage-metrics" style="cursor:pointer;" onclick="openDeviceSettingsModal()">
+        <span id="diskSpaceText">Available free</span>
+      </div>
+    </div>
+    <div class="storage-bar-track">
+      <div class="storage-bar-fill" id="storageBarFill"></div>
+    </div>
+  </section>
+
+  <section class="qr-connect-card" id="qrConnectCard" style="display:none;">
+    <div class="qr-box" id="qrSvgContainer"></div>
+    <div class="qr-details">
+      <div class="qr-title">Connect Your Phone</div>
+      <div class="qr-desc">Make sure your laptop is connected to your phone's hotspot, then scan this QR code:</div>
+      <div class="qr-link-badge" id="qrUrlBadge">http://...</div>
+    </div>
+  </section>
+
+  <!-- TAB 1: UPLOAD -->
+  <section id="tab-upload" class="tab-content active">
+    <div class="dropzone" id="dropzone">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+      <h3>Drop files or folders here</h3>
+      <p>Direct Wi-Fi 6 Transfer &bull; Saves to Desktop/from-phone</p>
+      
+      <div class="action-buttons">
+        <button type="button" class="btn-primary" onclick="document.getElementById('fileInput').click()">Select Files</button>
+        <button type="button" class="btn-secondary" onclick="document.getElementById('folderInput').click()">Select Folder</button>
+      </div>
+      <input type="file" id="fileInput" multiple>
+      <input type="file" id="folderInput" webkitdirectory directory multiple>
+    </div>
+
+    <div class="indexing-banner" id="indexingBanner" style="display:none;">
+      <div class="indexing-spinner"></div>
+      <span class="indexing-text" id="indexingText">Scanning folder structure...</span>
+    </div>
+
+    <div class="queue-summary" id="queueSummary" style="display:none;">
+      <div class="summary-header">
+        <span id="summaryCount">Transferring...</span>
+        <div class="summary-metrics">
+          <span class="summary-speed" id="summarySpeed">0 MB/s</span>
+          <span class="summary-eta" id="summaryEta">--</span>
+          <button type="button" class="btn-cancel" id="summaryCancelBtn" onclick="handleSummaryCancel()">Cancel All</button>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="summaryProgressFill"></div>
+      </div>
+    </div>
+
+    <div class="queue-container" id="uploadQueue"></div>
+  </section>
+
+  <!-- TAB 2: FILES ON LAPTOP -->
+  <section id="tab-files" class="tab-content">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+
+    <div class="files-toolbar">
+      <input type="text" id="searchInput" class="search-input" placeholder="Filter files..." oninput="filterFiles()">
+      <button class="btn-small" onclick="promptNewFolder()">+ Folder</button>
+      <button class="btn-small" onclick="loadFiles()">Refresh</button>
+      <button class="btn-small" onclick="confirmClearSharedFolder()" style="color:var(--danger);" title="Delete all files in this directory">Clear All</button>
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </section>
+
+  <!-- TAB 3: MULTIMODAL CLIPBOARD -->
+  <section id="tab-clip" class="tab-content">
+    <div class="clip-wrapper">
+      <div class="clip-card">
+        <div class="clip-header">
+          <span>PC CLIPBOARD</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn-small" onclick="loadClip(true)">Fetch from PC</button>
+            <button class="btn-small" onclick="clearClipboardView()" title="Clear view and start fresh">✕ Reset</button>
+          </div>
+        </div>
+
+        <div id="pcImageCard" style="display:none;" class="clip-image-preview">
+          <div style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:12px;color:var(--text-secondary);" id="pcImgInfo">Image from PC</div>
+            <button class="action-btn btn-del" onclick="dismissPcImage()" title="Close image preview">✕ Close Preview</button>
+          </div>
+          <img id="pcImgElement" class="clip-img-tag" src="" alt="Copied Image">
+          <div class="clip-actions">
+            <a id="pcImgDownloadBtn" class="btn-primary" download="clipboard_image.png" href="">Save Image</a>
+            <button class="btn-secondary" onclick="copyImageToPhone()">Copy Image</button>
+            <button class="btn-secondary" onclick="saveClipImageToSharedFolder()">Save to Files</button>
+            <button class="btn-secondary" onclick="dismissPcImage()">✕ Close</button>
+          </div>
+        </div>
+
+        <div id="pcTextCard">
+          <textarea id="clipText" class="clip-box" placeholder="Type or paste text here. Tap 'Send Text to PC' to paste with Ctrl+V on your laptop..."></textarea>
+          <div class="clip-actions" style="margin-top:10px;">
+            <button class="btn-secondary" onclick="clearClipText()" title="Clear text area">✕ Clear Text</button>
+            <button class="btn-secondary" onclick="copyClip()">Copy Text</button>
+            <button class="btn-primary" onclick="saveClipText()">Send Text to PC (Ctrl+V)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="clip-card">
+        <div class="clip-header">
+          <span>SEND IMAGE TO PC CLIPBOARD</span>
+          <button class="btn-small" id="clipImgCancelBtn" style="display:none;" onclick="cancelSelectedClipImage()">✕ Remove</button>
+        </div>
+        <p style="font-size:13px;color:var(--text-secondary);">
+          Select or paste an image here to copy it directly into your PC's clipboard. You can immediately press <b>Ctrl+V</b> in Discord, Telegram, Slack, LibreOffice, GIMP, or any PC app.
+        </p>
+
+        <div id="selectedImagePreview" style="display:none;" class="clip-image-preview">
+          <img id="selectedImgElement" class="clip-img-tag" src="" alt="Selected Image">
+          <div style="font-size:12px;color:var(--text-secondary);" id="selectedImgInfo">Ready to send</div>
+          <div class="clip-actions">
+            <button class="btn-primary" onclick="sendSelectedImageToPc()">Send Image to PC (Ctrl+V)</button>
+            <button class="btn-secondary" onclick="cancelSelectedClipImage()">✕ Remove</button>
+          </div>
+        </div>
+
+        <div class="clip-actions" id="selectImageActions">
+          <button class="btn-secondary" onclick="document.getElementById('clipImageInput').click()">Select Image to Copy</button>
+          <input type="file" id="clipImageInput" accept="image/*" onchange="handleClipImageSelect(this.files)">
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" onclick="closeModal(event)">
+  <div class="modal-content" id="modalContainer" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

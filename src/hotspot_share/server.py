@@ -1,0 +1,748 @@
+import os
+import sys
+import json
+import time
+import socket
+import urllib.parse
+import mimetypes
+import subprocess
+import zipfile
+import tempfile
+import shutil
+import base64
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+
+from .config import (
+    get_web_dir, get_icon_file, get_default_share_dir,
+    write_runtime_info, clear_runtime_info
+)
+from .qr import get_svg_qr, get_terminal_qr, get_wifi_qr_text
+from .devices import (
+    DeviceTracker, get_pc_device_name, is_local_ip,
+    save_device_name, load_saved_devices
+)
+from .transfers import TransferTracker, format_size
+from .clipboard import (
+    get_system_clipboard, set_system_clipboard_text, set_system_clipboard_image
+)
+from .notifications import (
+    notify_device_connected, notify_transfer_completed, notify_clipboard_synced
+)
+from .hotspot import (
+    is_nmcli_available, get_active_hotspot, start_hotspot, stop_hotspot
+)
+from .auth import AuthManager
+
+def get_local_ips():
+    ips = []
+    # 1. Try socket connection to public DNS
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.2)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not is_local_ip(ip):
+            ips.append(ip)
+    except Exception:
+        pass
+
+    # 2. Try parsing hostname / interfaces via hostname -I or ip route
+    try:
+        out = subprocess.check_output(['hostname', '-I'], text=True, stderr=subprocess.DEVNULL)
+        for cand in out.strip().split():
+            if cand and not is_local_ip(cand) and cand not in ips:
+                ips.append(cand)
+    except Exception:
+        pass
+
+    # 3. Fallback
+    if not ips:
+        ips = ['127.0.0.1']
+    return ips
+
+def get_disk_stats(path: Path):
+    try:
+        total_b, used_b, free_b = shutil.disk_usage(path)
+        pct_free = (free_b / total_b) * 100 if total_b > 0 else 0
+        pct_used = (used_b / total_b) * 100 if total_b > 0 else 0
+        return {
+            'free_bytes': free_b,
+            'total_bytes': total_b,
+            'used_bytes': used_b,
+            'free_str': format_size(free_b),
+            'total_str': format_size(total_b),
+            'used_str': format_size(used_b),
+            'pct_free': round(pct_free),
+            'pct_used': round(pct_used)
+        }
+    except Exception:
+        return {
+            'free_bytes': 0, 'total_bytes': 0, 'used_bytes': 0,
+            'free_str': 'Available', 'total_str': '', 'used_str': '',
+            'pct_free': 100, 'pct_used': 0
+        }
+
+class Stats:
+    start_time = time.time()
+    total_uploads = 0
+    total_downloads = 0
+    total_uploaded_bytes = 0
+    total_downloaded_bytes = 0
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+    def server_bind(self):
+        super().server_bind()
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except Exception:
+            pass
+
+class HotspotHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    shared_dir = get_default_share_dir()
+    server_port = 8080
+    primary_ip = "127.0.0.1"
+
+    def setup(self):
+        super().setup()
+        try:
+            self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 * 1024 * 1024)
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8 * 1024 * 1024)
+        except Exception:
+            pass
+
+    def log_message(self, format, *args):
+        # Silence default HTTP server console noise
+        pass
+
+    def send_json(self, data, status=200):
+        try:
+            body = json.dumps(data).encode('utf-8')
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            self.close_connection = True
+
+    def resolve_safe_path(self, rel_path):
+        clean_rel = os.path.normpath(urllib.parse.unquote(rel_path or '')).lstrip('/')
+        if clean_rel in ('.', ''):
+            return self.shared_dir
+        target = (self.shared_dir / clean_rel).resolve()
+        if str(target).startswith(str(self.shared_dir.resolve())):
+            return target
+        return None
+
+    def is_client_local(self):
+        client_ip = self.client_address[0]
+        return is_local_ip(client_ip) or client_ip == self.primary_ip
+
+    def check_auth(self):
+        if not AuthManager.auth_enabled:
+            return True
+        if self.is_client_local():
+            return True
+        auth_header = self.headers.get('Authorization', '')
+        token = ''
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:].strip()
+        client_ip = self.client_address[0]
+        return AuthManager.is_authorized(client_ip, token)
+
+    def do_GET(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+
+        web_dir = get_web_dir()
+
+        if path in ('/', '/index.html'):
+            index_path = web_dir / "index.html"
+            if index_path.exists():
+                content = index_path.read_text(encoding='utf-8')
+            else:
+                content = "<h1>Hotspot Share</h1><p>Web frontend missing.</p>"
+
+            icon_png = get_icon_file(512, "png")
+            icon_b64 = ""
+            if icon_png and icon_png.exists():
+                icon_b64 = base64.b64encode(icon_png.read_bytes()).decode('ascii')
+            content = content.replace('__ICON_BASE64__', icon_b64)
+
+            body = content.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Accept-CH', 'Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version')
+            self.send_header('Permissions-Policy', 'ch-ua-model=*, ch-ua-platform=*')
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        elif path == '/style.css':
+            css_path = web_dir / "style.css"
+            if css_path.exists():
+                data = css_path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/css; charset=utf-8')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'public, max-age=3600')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        elif path == '/app.js':
+            js_path = web_dir / "app.js"
+            if js_path.exists():
+                data = js_path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'public, max-age=3600')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        elif path == '/manifest.json':
+            manifest_path = web_dir / "manifest.json"
+            if manifest_path.exists():
+                data = manifest_path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        elif path in ('/icon.png', '/favicon.ico', '/apple-touch-icon.png'):
+            icon_png = get_icon_file(512, "png")
+            if icon_png and icon_png.exists():
+                data = icon_png.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'public, max-age=86400')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        elif path in ('/icon.svg', '/favicon.svg'):
+            icon_svg = get_icon_file(512, "svg")
+            if icon_svg and icon_svg.exists():
+                data = icon_svg.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/svg+xml')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('Cache-Control', 'public, max-age=86400')
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        # Status endpoint is public so mobile UI can check if PIN is required
+        elif path == '/api/status':
+            server_url = f"http://{self.primary_ip}:{self.server_port}"
+            phones = DeviceTracker.get_connected_phones()
+            disk = get_disk_stats(self.shared_dir)
+            qr_svg = get_svg_qr(server_url)
+            transfers = TransferTracker.get_transfers_state()
+            hotspot_info = get_active_hotspot()
+
+            self.send_json({
+                'connected': len(phones) > 0,
+                'is_local_client': self.is_client_local(),
+                'client_ip': self.client_address[0],
+                'pc_name': get_pc_device_name(),
+                'pc_disk': disk,
+                'phones': phones,
+                'transfers': transfers,
+                'cancel_all_time': TransferTracker.last_cancel_all_time,
+                'server_url': server_url,
+                'qr_svg': qr_svg,
+                'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
+                'pin_code': AuthManager.pin_code if self.is_client_local() else "",
+                'hotspot_active': hotspot_info.get('active', False),
+                'hotspot_name': hotspot_info.get('name', '')
+            })
+            return
+
+        # Authenticated endpoints check
+        if not self.check_auth():
+            self.send_json({'status': 'unauthorized', 'error': 'PIN authentication required'}, status=401)
+            return
+
+        if path == '/api/files':
+            req_dir = query.get('dir', [''])[0]
+            target_dir = self.resolve_safe_path(req_dir)
+            if not target_dir or not target_dir.is_dir():
+                self.send_json([])
+                return
+
+            items = []
+            for p in sorted(target_dir.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+                if not p.name.startswith('.'):
+                    st = p.stat()
+                    mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))
+                    rel_to_root = str(p.relative_to(self.shared_dir))
+                    if p.is_dir():
+                        item_count = sum(1 for c in p.iterdir() if not c.name.startswith('.'))
+                        items.append({
+                            'name': p.name,
+                            'path': rel_to_root,
+                            'is_dir': True,
+                            'item_count': item_count,
+                            'mtime': mtime_str
+                        })
+                    else:
+                        items.append({
+                            'name': p.name,
+                            'path': rel_to_root,
+                            'is_dir': False,
+                            'size': st.st_size,
+                            'mtime': mtime_str
+                        })
+            self.send_json(items)
+            return
+
+        elif path == '/api/upload_status':
+            transfer_id = query.get('id', [''])[0]
+            filename = query.get('name', [''])[0]
+            rel_path = query.get('relPath', [''])[0]
+            target_dir = query.get('targetDir', [''])[0]
+
+            if rel_path:
+                clean_rel = os.path.normpath(urllib.parse.unquote(rel_path)).lstrip('/')
+            else:
+                clean_rel = os.path.basename(urllib.parse.unquote(filename))
+
+            if target_dir:
+                clean_target_dir = os.path.normpath(urllib.parse.unquote(target_dir)).lstrip('/')
+                target_path = self.shared_dir / clean_target_dir / clean_rel
+            else:
+                target_path = self.shared_dir / clean_rel
+
+            offset = 0
+            if target_path.exists() and not target_path.is_dir() and not TransferTracker.is_cancelled(transfer_id):
+                try:
+                    offset = target_path.stat().st_size
+                except Exception:
+                    offset = 0
+
+            self.send_json({'status': 'ok', 'offset': offset})
+            return
+
+        elif path == '/api/download':
+            req_path = query.get('path', [''])[0]
+            target_path = self.resolve_safe_path(req_path)
+
+            if not target_path or not target_path.exists():
+                self.send_error(404, "File/Folder Not Found")
+                return
+
+            t_stamp = time.strftime('%H:%M:%S')
+
+            if target_path.is_dir():
+                folder_name = target_path.name or "HotspotShare"
+                temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+                temp_zip_path = Path(temp_zip.name)
+                try:
+                    with zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        for root, _, files in os.walk(target_path):
+                            for file in files:
+                                if not file.startswith('.'):
+                                    full_file_path = Path(root) / file
+                                    arcname = full_file_path.relative_to(target_path)
+                                    zf.write(full_file_path, arcname)
+                    temp_zip.close()
+
+                    zip_size = temp_zip_path.stat().st_size
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/zip')
+                    self.send_header('Content-Disposition', f'attachment; filename="{folder_name}.zip"')
+                    self.send_header('Content-Length', str(zip_size))
+                    self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                    self.end_headers()
+
+                    start_t = time.time()
+                    with open(temp_zip_path, 'rb', buffering=4*1024*1024) as f:
+                        if hasattr(self.connection, 'sendfile'):
+                            try:
+                                self.connection.sendfile(f)
+                            except Exception:
+                                f.seek(0)
+                                while True:
+                                    chunk = f.read(1024 * 1024)
+                                    if not chunk: break
+                                    self.wfile.write(chunk)
+                        else:
+                            while True:
+                                chunk = f.read(1024 * 1024)
+                                if not chunk: break
+                                self.wfile.write(chunk)
+                    
+                    elapsed = max(0.001, time.time() - start_t)
+                    speed_mb = (zip_size / (1024 * 1024)) / elapsed
+                    Stats.total_downloads += 1
+                    Stats.total_downloaded_bytes += zip_size
+                    print(f" \033[90m{t_stamp}\033[0m  \033[36m[DOWNLOAD]  \033[0m {folder_name}.zip \033[90m({format_size(zip_size)})\033[0m \033[32m{speed_mb:.1f} MB/s\033[0m")
+                finally:
+                    if temp_zip_path.exists():
+                        temp_zip_path.unlink()
+                return
+
+            file_size = target_path.stat().st_size
+            mime_type, _ = mimetypes.guess_type(str(target_path))
+            mime_type = mime_type or 'application/octet-stream'
+
+            range_header = self.headers.get('Range')
+            if range_header and range_header.startswith('bytes='):
+                ranges = range_header[6:].split('-')
+                start = int(ranges[0]) if ranges[0] else 0
+                end = int(ranges[1]) if ranges[1] else file_size - 1
+                if start >= file_size or end >= file_size or start > end:
+                    self.send_response(416)
+                    self.send_header('Content-Range', f'bytes */{file_size}')
+                    self.end_headers()
+                    return
+
+                length = end - start + 1
+                self.send_response(206)
+                self.send_header('Content-Type', mime_type)
+                self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
+                self.send_header('Content-Length', str(length))
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.end_headers()
+
+                with open(target_path, 'rb', buffering=4*1024*1024) as f:
+                    f.seek(start)
+                    remaining = length
+                    while remaining > 0:
+                        chunk = f.read(min(remaining, 1024 * 1024))
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+            else:
+                self.send_response(200)
+                self.send_header('Content-Type', mime_type)
+                self.send_header('Content-Length', str(file_size))
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.end_headers()
+
+                start_t = time.time()
+                with open(target_path, 'rb', buffering=4*1024*1024) as f:
+                    if hasattr(self.connection, 'sendfile') and file_size > 0:
+                        try:
+                            self.connection.sendfile(f)
+                        except Exception:
+                            f.seek(0)
+                            while True:
+                                chunk = f.read(1024 * 1024)
+                                if not chunk: break
+                                self.wfile.write(chunk)
+                    else:
+                        while True:
+                            chunk = f.read(1024 * 1024)
+                            if not chunk: break
+                            self.wfile.write(chunk)
+
+                elapsed = max(0.001, time.time() - start_t)
+                speed_mb = (file_size / (1024 * 1024)) / elapsed
+                Stats.total_downloads += 1
+                Stats.total_downloaded_bytes += file_size
+                print(f" \033[90m{t_stamp}\033[0m  \033[36m[DOWNLOAD]  \033[0m {target_path.name} \033[90m({format_size(file_size)})\033[0m \033[32m{speed_mb:.1f} MB/s\033[0m")
+            return
+
+        elif path == '/api/clipboard':
+            clip_data = get_system_clipboard()
+            self.send_json(clip_data)
+            return
+
+        self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+        t_stamp = time.strftime('%H:%M:%S')
+
+        # Public auth verify endpoint
+        if path == '/api/auth/verify':
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            pin = data.get('pin', '')
+            client_ip = self.client_address[0]
+            ok, token = AuthManager.verify_pin(pin, client_ip)
+            if ok:
+                self.send_json({'status': 'ok', 'token': token})
+            else:
+                self.send_json({'status': 'error', 'message': 'Invalid PIN code'}, status=403)
+            return
+
+        # Check authentication for remaining endpoints
+        if not self.check_auth():
+            self.send_json({'status': 'unauthorized', 'error': 'PIN authentication required'}, status=401)
+            return
+
+        if path == '/api/heartbeat':
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            ua = data.get('ua') or self.headers.get('User-Agent', '')
+            model = data.get('model', '')
+            nickname = data.get('nickname', '')
+            storage = data.get('storage')
+            client_ip = self.client_address[0]
+            is_new = DeviceTracker.register_heartbeat(client_ip, ua, model, nickname, storage)
+            if is_new and not is_local_ip(client_ip):
+                dev_name = DeviceTracker.active_sessions.get(client_ip, {}).get('device_name', 'Phone')
+                notify_device_connected(dev_name)
+            self.send_json({'status': 'ok'})
+            return
+
+        elif path == '/api/rename_device':
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            target_ip = data.get('ip') or self.client_address[0]
+            new_name = data.get('name', '').strip()
+            if new_name:
+                save_device_name(target_ip, new_name)
+                if target_ip in DeviceTracker.active_sessions:
+                    DeviceTracker.active_sessions[target_ip]['device_name'] = new_name
+            self.send_json({'status': 'ok'})
+            return
+
+        elif path == '/api/cancel_transfer':
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            tx_id = data.get('id') or query.get('id', [''])[0]
+            if tx_id:
+                TransferTracker.cancel_transfer(tx_id)
+            else:
+                TransferTracker.cancel_all()
+            self.send_json({'status': 'ok'})
+            return
+
+        elif path == '/api/cancel_all':
+            TransferTracker.cancel_all()
+            self.send_json({'status': 'ok'})
+            return
+
+        elif path == '/api/hotspot/start':
+            res = start_hotspot()
+            self.send_json(res)
+            return
+
+        elif path == '/api/hotspot/stop':
+            res = stop_hotspot()
+            self.send_json(res)
+            return
+
+        elif path == '/api/upload':
+            client_ip = self.client_address[0]
+            transfer_id = query.get('id', [''])[0]
+            filename = query.get('name', ['uploaded_file'])[0]
+            rel_path = query.get('relPath', [''])[0]
+            target_dir = query.get('targetDir', [''])[0]
+            offset = int(query.get('offset', [self.headers.get('X-Upload-Offset', '0')])[0])
+            total_file_size = int(query.get('totalSize', [self.headers.get('X-Total-Size', '0')])[0])
+
+            if rel_path:
+                clean_rel = os.path.normpath(urllib.parse.unquote(rel_path)).lstrip('/')
+            else:
+                clean_rel = os.path.basename(urllib.parse.unquote(filename))
+
+            if not transfer_id:
+                transfer_id = f"tx_{int(time.time()*1000)}_{abs(hash(clean_rel))%10000}"
+
+            if target_dir:
+                clean_target_dir = os.path.normpath(urllib.parse.unquote(target_dir)).lstrip('/')
+                target_path = self.shared_dir / clean_target_dir / clean_rel
+            else:
+                target_path = self.shared_dir / clean_rel
+
+            if not str(target_path.resolve()).startswith(str(self.shared_dir.resolve())):
+                target_path = self.shared_dir / os.path.basename(clean_rel)
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            content_length = int(self.headers.get('Content-Length', 0))
+            total_size = total_file_size or (offset + content_length)
+            display_name = str(target_path.relative_to(self.shared_dir))
+            sender_name = DeviceTracker.active_sessions.get(client_ip, {}).get('device_name', "Phone")
+
+            if TransferTracker.is_cancelled(transfer_id):
+                self.close_connection = True
+                self.send_json({'status': 'cancelled', 'error': 'Transfer cancelled'}, status=400)
+                return
+
+            TransferTracker.start_transfer(transfer_id, filename, clean_rel, total_size, client_ip, sender_name, sock=self.connection)
+            TransferTracker.update_progress(transfer_id, offset)
+
+            start_t = time.time()
+            written = 0
+            last_report_t = start_t
+            cancelled = False
+            error_occurred = False
+            error_message = ""
+
+            mode = 'ab' if (offset > 0 and target_path.exists()) else 'wb'
+
+            try:
+                with open(target_path, mode, buffering=4*1024*1024) as out_f:
+                    if offset > 0 and mode != 'ab':
+                        out_f.seek(offset)
+
+                    remaining = content_length
+                    while remaining > 0:
+                        if TransferTracker.is_cancelled(transfer_id):
+                            cancelled = True
+                            break
+
+                        chunk = self.rfile.read(min(remaining, 1024 * 1024))
+                        if not chunk:
+                            if remaining > 0:
+                                error_occurred = True
+                                error_message = "Upload disconnected before completion"
+                            break
+
+                        out_f.write(chunk)
+                        written += len(chunk)
+                        remaining -= len(chunk)
+
+                        now_t = time.time()
+                        if now_t - last_report_t > 0.08:
+                            TransferTracker.update_progress(transfer_id, offset + written)
+                            last_report_t = now_t
+
+                        if TransferTracker.is_cancelled(transfer_id):
+                            cancelled = True
+                            break
+
+                if cancelled or TransferTracker.is_cancelled(transfer_id):
+                    if target_path.exists():
+                        target_path.unlink(missing_ok=True)
+                    TransferTracker.finish_transfer(transfer_id, success=False, error_msg="Cancelled", is_cancelled=True)
+                    t_stamp = time.strftime('%H:%M:%S')
+                    print(f" \033[90m{t_stamp}\033[0m  \033[33m[CANCEL]    \033[0m {display_name}")
+                    self.close_connection = True
+                    self.send_json({'status': 'cancelled', 'error': 'Cancelled'}, status=400)
+                    return
+
+                if error_occurred or (offset + written < total_size):
+                    TransferTracker.update_progress(transfer_id, offset + written)
+                    t_stamp = time.strftime('%H:%M:%S')
+                    print(f" \033[90m{t_stamp}\033[0m  \033[33m[PAUSED]    \033[0m {display_name} ({format_size(offset + written)}/{format_size(total_size)}) - preserved for resume")
+                    self.close_connection = True
+                    self.send_json({'status': 'paused', 'received': offset + written, 'error': error_message or 'Incomplete chunk'}, status=400)
+                    return
+
+                TransferTracker.update_progress(transfer_id, offset + written)
+                TransferTracker.finish_transfer(transfer_id, success=True)
+                notify_transfer_completed(target_path.name, format_size(total_size))
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                is_canc = TransferTracker.is_cancelled(transfer_id)
+                if is_canc and target_path.exists():
+                    target_path.unlink(missing_ok=True)
+                TransferTracker.finish_transfer(transfer_id, success=False, error_msg="Client disconnected", is_cancelled=is_canc)
+                self.close_connection = True
+                t_stamp = time.strftime('%H:%M:%S')
+                if is_canc:
+                    print(f" \033[90m{t_stamp}\033[0m  \033[33m[CANCEL]    \033[0m {display_name}")
+                else:
+                    print(f" \033[90m{t_stamp}\033[0m  \033[33m[PAUSED]    \033[0m {display_name} (Client disconnected - preserved for resume)")
+                return
+            except Exception as e:
+                is_canc = TransferTracker.is_cancelled(transfer_id)
+                if is_canc and target_path.exists():
+                    target_path.unlink(missing_ok=True)
+                TransferTracker.finish_transfer(transfer_id, success=False, error_msg=str(e), is_cancelled=is_canc)
+                self.close_connection = True
+                t_stamp = time.strftime('%H:%M:%S')
+                if is_canc:
+                    print(f" \033[90m{t_stamp}\033[0m  \033[33m[CANCEL]    \033[0m {display_name}")
+                    self.send_json({'status': 'cancelled', 'error': 'Cancelled'}, status=400)
+                else:
+                    print(f" \033[90m{t_stamp}\033[0m  \033[31m[ERROR]     \033[0m {display_name}: {e}")
+                    try:
+                        self.send_error(500, f"Upload error: {e}")
+                    except Exception:
+                        pass
+                return
+
+            elapsed = max(0.001, time.time() - start_t)
+            speed_mb = ((offset + written) / (1024 * 1024)) / elapsed
+            Stats.total_uploads += 1
+            Stats.total_uploaded_bytes += written
+
+            t_stamp = time.strftime('%H:%M:%S')
+            print(f" \033[90m{t_stamp}\033[0m  \033[32m[UPLOAD]    \033[0m {display_name} \033[90m({format_size(offset + written)})\033[0m \033[1;37m{speed_mb:.1f} MB/s\033[0m")
+
+            self.send_json({'status': 'ok', 'filename': display_name, 'size': offset + written})
+            return
+
+        elif path == '/api/mkdir':
+            req_dir = query.get('dir', [''])[0]
+            new_folder_name = os.path.basename(urllib.parse.unquote(query.get('name', [''])[0]))
+            base_dir = self.resolve_safe_path(req_dir)
+            if base_dir and new_folder_name:
+                new_folder_path = base_dir / new_folder_name
+                new_folder_path.mkdir(parents=True, exist_ok=True)
+                print(f" \033[90m{t_stamp}\033[0m  \033[34m[MKDIR]     \033[0m {new_folder_path.relative_to(self.shared_dir)}")
+                self.send_json({'status': 'ok'})
+            else:
+                self.send_error(400, "Invalid directory name")
+            return
+
+        elif path == '/api/delete':
+            req_path = query.get('path', [''])[0]
+            target = self.resolve_safe_path(req_path)
+            if target and target.exists() and target != self.shared_dir:
+                display_name = str(target.relative_to(self.shared_dir))
+                if target.is_dir():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
+                print(f" \033[90m{t_stamp}\033[0m  \033[31m[DELETE]    \033[0m {display_name}")
+                self.send_json({'status': 'ok'})
+            else:
+                self.send_error(404, "Item not found")
+            return
+
+        elif path == '/api/clipboard':
+            length = int(self.headers.get('Content-Length', 0))
+            data = json.loads(self.rfile.read(length).decode('utf-8'))
+            
+            data_type = data.get('type', 'text')
+            if data_type == 'image':
+                raw_b64 = data.get('data', '')
+                if ',' in raw_b64:
+                    raw_b64 = raw_b64.split(',', 1)[1]
+                img_bytes = base64.b64decode(raw_b64)
+                mime = data.get('mime', 'image/png')
+                success = set_system_clipboard_image(img_bytes, mime)
+                print(f" \033[90m{t_stamp}\033[0m  \033[33m[CLIPBOARD] \033[0m Synced image ({format_size(len(img_bytes))}) to PC (Ctrl+V ready)")
+                notify_clipboard_synced(f"Image received ({format_size(len(img_bytes))})")
+                self.send_json({'status': 'ok', 'clipboard_synced': success})
+            else:
+                new_text = data.get('text', '')
+                success = set_system_clipboard_text(new_text)
+                preview = (new_text[:40] + "...") if len(new_text) > 40 else new_text
+                print(f" \033[90m{t_stamp}\033[0m  \033[33m[CLIPBOARD] \033[0m Synced text ({len(new_text)} chars) to PC (Ctrl+V ready)")
+                notify_clipboard_synced(f"Text received: {preview}")
+                self.send_json({'status': 'ok', 'clipboard_synced': success})
+            return
+
+        self.send_error(404, "Not Found")
