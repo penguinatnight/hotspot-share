@@ -23,7 +23,7 @@ clean:
 	rm -rf build dist *.egg-info __pycache__ src/*/__pycache__ debian/hotspot-share debian/.debhelper *.deb *.snap
 
 test:
-	$(PYTHON) -m hotspot_share.cli --version
+	PYTHONPATH=src $(PYTHON) -m hotspot_share.cli --version
 
 install: build
 	@echo "Installing Hotspot Share to $(DESTDIR)$(PREFIX)..."
@@ -35,7 +35,7 @@ install: build
 	@echo 'exec $(PYTHON) -m hotspot_share.cli "$$@"' >> $(DESTDIR)$(BINDIR)/hotspot-share
 	chmod 755 $(DESTDIR)$(BINDIR)/hotspot-share
 	# Python Package
-	$(PYTHON) -m pip install . --prefix=$(PREFIX) --root=$(DESTDIR)/ --no-deps --upgrade 2>/dev/null || true
+	$(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(PREFIX) --install-layout=deb --no-compile 2>/dev/null || $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(PREFIX) 2>/dev/null || true
 	# Desktop and AppStream
 	install -d $(DESTDIR)$(DATADIR)/applications
 	install -m 644 packaging/desktop/hotspot-share.desktop $(DESTDIR)$(DATADIR)/applications/hotspot-share.desktop
