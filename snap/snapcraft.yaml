@@ -8,6 +8,7 @@ description: |
   synchronization tool. It allows rapid sharing between Linux PCs and mobile 
   phones without requiring cloud servers, account logins, or phone app installation.
 
+icon: snap/gui/icon.png
 license: GPL-3.0-or-later
 contact: yeabsrahenok0909@gmail.com
 website: https://github.com/penguinatnight/hotspot-share
@@ -30,7 +31,7 @@ apps:
   hotspot-share-gui:
     command: bin/hotspot-share-gui
     extensions: [gnome]
-    desktop: usr/share/applications/hotspot-share.desktop
+    desktop: snap/gui/hotspot-share.desktop
     plugs:
       - network
       - network-bind
