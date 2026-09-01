@@ -177,7 +177,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
             icon_png = get_icon_file(512, "png")
             icon_b64 = ""
-            if icon_png and icon_png.exists():
+            if icon_png and icon_png.is_file():
                 icon_b64 = base64.b64encode(icon_png.read_bytes()).decode('ascii')
             content = content.replace('__ICON_BASE64__', icon_b64)
 
@@ -229,7 +229,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         elif path in ('/icon.png', '/favicon.ico', '/apple-touch-icon.png'):
             icon_png = get_icon_file(512, "png")
-            if icon_png and icon_png.exists():
+            if icon_png and icon_png.is_file():
                 data = icon_png.read_bytes()
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/png')
@@ -241,7 +241,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         elif path in ('/icon.svg', '/favicon.svg'):
             icon_svg = get_icon_file(512, "svg")
-            if icon_svg and icon_svg.exists():
+            if icon_svg and icon_svg.is_file():
                 data = icon_svg.read_bytes()
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/svg+xml')

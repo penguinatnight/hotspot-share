@@ -1,0 +1,14 @@
+Source: hotspot-share
+Section: utils
+Priority: optional
+Maintainer: Hotspot Share Contributors <yeabsrahenok0909@gmail.com>
+Build-Depends: debhelper-compat (= 13), gcc, pkg-config, libgtk-3-dev, libwebkit2gtk-4.1-dev | libwebkit2gtk-4.0-dev, python3
+Standards-Version: 4.6.2
+Homepage: https://github.com/penguinatnight/hotspot-share
+
+Package: hotspot-share
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, wl-clipboard | xclip, libnotify-bin, network-manager
+Description: High-speed local Wi-Fi file sharing & multimodal clipboard sync
+ Hotspot Share allows lightning-fast, zero-cloud file transfers and clipboard 
+ synchronization between Linux PCs and mobile phones over local Wi-Fi or hotspot.

@@ -52,8 +52,8 @@ parts:
       gui/hotspot-share-gui: bin/hotspot-share-gui
       packaging/desktop/hotspot-share.desktop: usr/share/applications/hotspot-share.desktop
       packaging/appstream/org.yab.hotspotshare.metainfo.xml: usr/share/metainfo/org.yab.hotspotshare.metainfo.xml
+      assets/icons/hicolor: usr/share/icons/hicolor
       assets/icons/hotspot-share.svg: usr/share/icons/hicolor/scalable/apps/hotspot-share.svg
-      assets/icons/hicolor/512x512/apps/hotspot-share.png: usr/share/icons/hicolor/512x512/apps/hotspot-share.png
       web: usr/share/hotspot-share/web
 
   backend:

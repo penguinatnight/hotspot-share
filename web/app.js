@@ -372,8 +372,9 @@ function syncIncomingServerTransfers(transfers) {
   if (!transfers) return;
   if (activeUploads > 0 || uploadQueue.length > 0) return;
 
-  const active = transfers.active || [];
-  const recent = transfers.recent || [];
+  const list = Array.isArray(transfers) ? transfers : (transfers.active || []).concat(transfers.recent || []);
+  const active = list.filter(t => t.status === 'transferring');
+  const recent = list.filter(t => t.status === 'completed' || t.status === 'cancelled' || t.status === 'error' || t.status === 'done');
   const summaryBanner = document.getElementById('queueSummary');
   const queueContainer = document.getElementById('uploadQueue');
 
@@ -390,13 +391,21 @@ function syncIncomingServerTransfers(transfers) {
   if (active.length > 0) {
     const t = active[0];
     activeServerTransferId = t.id;
-    const pct = t.total_bytes > 0 ? Math.min(100, Math.round((t.transferred_bytes / t.total_bytes) * 100)) : 0;
+    const filename = t.name || t.filename || 'file';
+    const sender = t.sender || t.device_name || 'Phone';
+    const transferred = t.transferred_bytes || 0;
+    const total = t.total_bytes || 0;
+    const pct = total > 0 ? Math.min(100, Math.round((transferred / total) * 100)) : (t.progress_pct || 0);
+    const speedStr = t.speed_str || (t.speed_mb ? `${t.speed_mb} MB/s` : (t.speed_bps ? formatSpeed(t.speed_bps) : '0 MB/s'));
+    const speedBytes = t.speed_bps || ((t.speed_mb || 0) * 1024 * 1024);
+    const remBytes = Math.max(0, total - transferred);
+    const etaSec = speedBytes > 1024 ? Math.round(remBytes / speedBytes) : (t.eta_seconds || 0);
     
     summaryBanner.style.display = 'flex';
-    document.getElementById('summaryCount').innerText = `Receiving from ${t.device_name}: ${t.filename} (${formatBytes(t.transferred_bytes)} / ${formatBytes(t.total_bytes)})`;
+    document.getElementById('summaryCount').innerText = `Receiving from ${sender}: ${filename} (${formatBytes(transferred)} / ${formatBytes(total)})`;
     document.getElementById('summaryProgressFill').style.width = pct + '%';
-    document.getElementById('summarySpeed').innerText = formatSpeed(t.speed_bps);
-    document.getElementById('summaryEta').innerText = t.eta_seconds > 0 ? `${formatTimeRemaining(t.eta_seconds)} left` : '';
+    document.getElementById('summarySpeed').innerText = speedStr;
+    document.getElementById('summaryEta').innerText = etaSec > 0 ? `${formatTimeRemaining(etaSec)} left` : '';
     
     const cancelBtn = document.getElementById('summaryCancelBtn');
     cancelBtn.style.display = 'inline-flex';
@@ -415,7 +424,7 @@ function syncIncomingServerTransfers(transfers) {
           <div class="queue-card active-transfer" id="server-${t.id}">
             <div class="queue-title-row">
               <div class="queue-title-left">
-                <div class="queue-full-name" title="${escapeHtml(t.filename)}">${escapeHtml(t.filename)}</div>
+                <div class="queue-full-name" title="${escapeHtml(filename)}">${escapeHtml(filename)}</div>
               </div>
               <div class="queue-title-right">
                 <span class="queue-badge uploading" id="server-${t.id}-badge">Receiving</span>
@@ -426,7 +435,7 @@ function syncIncomingServerTransfers(transfers) {
               <div class="progress-fill" id="server-${t.id}-fill" style="width: ${pct}%;"></div>
             </div>
             <div class="queue-stats-row">
-              <span id="server-${t.id}-info">${formatBytes(t.transferred_bytes)} / ${formatBytes(t.total_bytes)} • ${formatSpeed(t.speed_bps)}${t.eta_seconds > 0 ? ' • ' + formatTimeRemaining(t.eta_seconds) + ' left' : ''}</span>
+              <span id="server-${t.id}-info">${formatBytes(transferred)} / ${formatBytes(total)} • ${speedStr}${etaSec > 0 ? ' • ' + formatTimeRemaining(etaSec) + ' left' : ''}</span>
               <span id="server-${t.id}-pct">${pct}%</span>
             </div>
           </div>
@@ -438,17 +447,20 @@ function syncIncomingServerTransfers(transfers) {
         if (pctEl) pctEl.innerText = pct + '%';
         const infoEl = document.getElementById(`server-${t.id}-info`);
         if (infoEl) {
-          const etaStr = t.eta_seconds > 0 ? ` • ${formatTimeRemaining(t.eta_seconds)} left` : '';
-          infoEl.innerText = `${formatBytes(t.transferred_bytes)} / ${formatBytes(t.total_bytes)} • ${formatSpeed(t.speed_bps)}${etaStr}`;
+          const etaStr = etaSec > 0 ? ` • ${formatTimeRemaining(etaSec)} left` : '';
+          infoEl.innerText = `${formatBytes(transferred)} / ${formatBytes(total)} • ${speedStr}${etaStr}`;
         }
       }
     }
   } else if (recent.length > 0) {
     const r = recent[0];
+    const filename = r.name || r.filename || 'file';
+    const sender = r.sender || r.device_name || 'Phone';
+    const isCompleted = r.status === 'completed' || r.status === 'done';
     summaryBanner.style.display = 'flex';
-    document.getElementById('summaryCount').innerText = r.status === 'done' ? `Received from ${r.device_name}: ${r.filename}` : `Transfer ${r.status}`;
-    document.getElementById('summaryProgressFill').style.width = r.status === 'done' ? '100%' : '0%';
-    document.getElementById('summarySpeed').innerText = r.status === 'done' ? 'Completed' : 'Cancelled';
+    document.getElementById('summaryCount').innerText = isCompleted ? `Received from ${sender}: ${filename}` : `Transfer ${r.status}`;
+    document.getElementById('summaryProgressFill').style.width = isCompleted ? '100%' : '0%';
+    document.getElementById('summarySpeed').innerText = isCompleted ? 'Completed' : (r.status === 'cancelled' ? 'Cancelled' : 'Failed');
     document.getElementById('summaryEta').innerText = '';
     document.getElementById('summaryCancelBtn').style.display = 'none';
 
@@ -457,12 +469,12 @@ function syncIncomingServerTransfers(transfers) {
       if (card) {
         const badge = document.getElementById(`server-${r.id}-badge`);
         if (badge) {
-          badge.className = r.status === 'done' ? 'queue-badge done' : 'queue-badge cancelled';
-          badge.innerText = r.status === 'done' ? 'Done' : 'Cancelled';
+          badge.className = isCompleted ? 'queue-badge done' : 'queue-badge cancelled';
+          badge.innerText = isCompleted ? 'Done' : (r.status === 'cancelled' ? 'Cancelled' : 'Failed');
         }
         const infoEl = document.getElementById(`server-${r.id}-info`);
         if (infoEl) {
-          infoEl.innerText = `${formatBytes(r.total_bytes)} • ${r.status === 'done' ? 'Saved to Desktop/from-phone' : 'Cancelled'}`;
+          infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
         }
       }
     }

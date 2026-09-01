@@ -86,11 +86,11 @@ def get_icon_file(size=512, ext="png") -> Path:
     # 1. Check source repo
     if ext == "svg":
         source_svg = Path(__file__).resolve().parent.parent.parent / "assets" / "icons" / "hotspot-share.svg"
-        if source_svg.exists():
+        if source_svg.is_file():
             return source_svg
     else:
         source_png = Path(__file__).resolve().parent.parent.parent / "assets" / "icons" / "hicolor" / f"{size}x{size}" / "apps" / "hotspot-share.png"
-        if source_png.exists():
+        if source_png.is_file():
             return source_png
 
     # 2. Check XDG icon dirs
@@ -106,14 +106,14 @@ def get_icon_file(size=512, ext="png") -> Path:
     for base in hicolor_paths:
         if ext == "svg":
             candidate = base / "scalable" / "apps" / "hotspot-share.svg"
-            if candidate.exists():
+            if candidate.is_file():
                 return candidate
         else:
             candidate = base / f"{size}x{size}" / "apps" / "hotspot-share.png"
-            if candidate.exists():
+            if candidate.is_file():
                 return candidate
 
-    return Path("")
+    return None
 
 def write_runtime_info(port: int, primary_ip: str, url: str, token: str = None, pid: int = None):
     r_dir = get_runtime_dir()

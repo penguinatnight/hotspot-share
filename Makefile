@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= -O2 -Wall
+CFLAGS ?= -O2 -Wall -Wno-deprecated-declarations
 PREFIX ?= /usr/local
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
@@ -24,6 +24,12 @@ clean:
 
 test:
 	PYTHONPATH=src $(PYTHON) -m hotspot_share.cli --version
+
+deb:
+	dpkg-buildpackage -us -uc -b
+
+snap:
+	snapcraft
 
 install: build
 	@echo "Installing Hotspot Share to $(DESTDIR)$(PREFIX)..."
