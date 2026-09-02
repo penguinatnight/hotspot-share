@@ -906,6 +906,11 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/delete':
+            # Security Hardening: Remote deletion is blocked by default to prevent untrusted peers from wiping data
+            if not self.is_client_local() and os.environ.get("HOTSPOT_ALLOW_REMOTE_DELETE", "0") != "1":
+                self.send_json({'status': 'error', 'message': 'Remote file deletion is disabled by security policy. Only the host PC can delete files.'}, status=403)
+                return
+
             req_path = query.get('path', [''])[0]
             target = self.resolve_safe_path(req_path)
             base = self.shared_dir.resolve()

@@ -1,136 +1,132 @@
 # Hotspot Share
 
 <p align="center">
-  <img src="assets/icons/hicolor/128x128/apps/hotspot-share.png" width="128" height="128" alt="Hotspot Share Icon">
+  <img src="assets/icons/hicolor/128x128/apps/hotspot-share.png" width="112" height="112" alt="Hotspot Share Icon">
 </p>
 
 <p align="center">
-  <b>High-Speed Local Wi-Fi File Sharing & Multimodal Clipboard Sync for Ubuntu / Linux & Mobile</b><br>
-  <i>Zero Cloud. Zero App Installation on Phones. Zero Python External Dependencies.</i>
+  <b>Turn your Linux laptop into an instant private sharing hub.</b><br>
+  Share files, clipboard text, and folders with any device through a browser.<br>
+  <i>No cloud servers. No user accounts. No app installation required on the receiving device.</i>
 </p>
 
 <p align="center">
-  <a href="https://github.com/penguinatnight/hotspot-share/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg" alt="License"></a>
-  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Android%20%7C%20iOS-informational.svg" alt="Platforms">
-  <img src="https://img.shields.io/badge/Ubuntu%20App%20Center-Ready-orange.svg" alt="Ubuntu App Center">
-  <img src="https://img.shields.io/badge/Confinement-Strict-green.svg" alt="Confinement">
+  <a href="https://github.com/penguinatnight/hotspot-share/actions/workflows/ci.yml"><img src="https://github.com/penguinatnight/hotspot-share/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="https://snapcraft.io/hotspot-share"><img src="https://snapcraft.io/hotspot-share/badge.svg" alt="Snap Store"></a>
+  <a href="https://github.com/penguinatnight/hotspot-share/releases/latest"><img src="https://img.shields.io/github/v/release/penguinatnight/hotspot-share?label=release&color=blue" alt="GitHub Release"></a>
+  <a href="https://github.com/penguinatnight/hotspot-share/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-green.svg" alt="License"></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/Telemetry-0%20Bytes-success.svg" alt="Zero Telemetry"></a>
 </p>
 
 ---
 
-## Overview
+## The 5-Second Pitch
 
-**Hotspot Share** is a modern, high-throughput local network file transfer and clipboard bridge built specifically for Linux desktops (Ubuntu, Debian, Fedora, Arch) and mobile smartphones (Android, iPhone).
+1. **Launch Hotspot Share** on your Linux laptop (Ubuntu, Debian, Fedora, Arch).
+2. **Built-in Wi-Fi Hotspot** starts automatically if no local network is available (zero router or internet required).
+3. **Scan the pairing QR code** using your iPhone or Android camera.
+4. **Browser opens instantly** — beam files, photos, 4K videos, folders, and clipboard snippets with gigabit Wi-Fi 6 speeds.
 
-Instead of forcing users to install mobile apps or upload private files to third-party cloud servers, Hotspot Share spins up an optimized, local HTTP/1.1 micro-server with WebKit native desktop integration. Mobile devices simply scan an interactive QR code to immediately transfer gigabytes of files, stream whole directory trees as zip archives on-the-fly, or synchronize clipboard contents directly into the Linux PC's `Ctrl+V` buffer.
+```text
+✓ Built-in Wi-Fi hotspot (works on airplanes, trains, or in parks with no internet)
+✓ Zero receiving app (works directly in mobile Safari, Chrome, and Firefox)
+✓ 100% offline & zero cloud (0 bytes ever leave your local physical network)
+✓ Bi-directional clipboard sharing (text & photos into desktop Ctrl+V buffer)
+✓ High-speed 8MB chunked transfer engine with RFC 206 range resume support
+✓ Full folder tree uploads & on-the-fly streaming ZIP downloads
+✓ Protected by PIN pairing, directory sandboxing, and optional TLS/HTTPS encryption
+✓ 100% Free & Open Source (GPL-3.0) with zero PyPI dependencies
+```
 
 ---
 
-## Key Features
+## Why Hotspot Share? (Comparison)
 
-- **⚡ High-Throughput Chunked Transfers**: Tuned 8MB socket buffers for Wi-Fi 6 speeds (40–90+ MB/s over 5GHz Hotspots).
-- **🔄 Auto-Resumable Uploads & Downloads**: Interrupted mobile uploads automatically resume from the exact byte offset.
-- **📁 Smart Batch Conflict Resolution**: Automatic smart duplicate renaming (`file (1).ext`), overwrite, or skip modes.
-- **📱 True PWA (Progressive Web App)**: Installable directly to mobile home screen with offline application shell and standalone full-screen experience (`manifest.json` + Service Worker).
-- **📡 Zero-Config mDNS & Local Beacon Discovery**: Peer auto-discovery over UDP beacon with `.local` domain resolution (`http://<hostname>.local:8080`).
-- **🛡️ Ephemeral TLS / HTTPS**: Optional on-the-fly self-signed TLS/HTTPS encryption (`--ssl`) unlocking mobile camera QR scanning and secure context.
-- **📋 Bi-Directional Clipboard Sync**:
-  - Send text or raw images (PNG/JPEG) from mobile to Linux clipboard for immediate `Ctrl+V` pasting in Discord, GIMP, Slack, LibreOffice, or terminal.
-  - Pull text or images copied on Linux directly to mobile.
-- **📦 Streaming Folder Downloads (Zip-on-the-Fly)**: Download entire directories as `.zip` archives with real-time compression streaming.
-- **🔒 Optional PIN Pairing Security**: Set a 4-digit PIN for safe sharing on public or semi-trusted Wi-Fi networks.
-- **📶 Built-in Wi-Fi Hotspot Automation**: Directly control NetworkManager to start/stop an Ubuntu Access Point and generate instant Wi-Fi join QR codes (`WIFI:T:WPA;S:...;P:...;;`).
-- **🖥️ Native Desktop Integration**:
-  - System Tray / AppIndicator status menu with background minimizing.
-  - Native Desktop Notifications via `libnotify` / Desktop Portal for incoming transfers.
-  - Nautilus / Nemo right-click file context menu: *"Send via Hotspot Share"*.
+| Capability | **Hotspot Share** | Apple AirDrop | LocalSend | Snapdrop | KDE Connect |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Linux ⇄ iPhone** | **Yes (Any Browser)** | :x: | Requires App | WebRTC | Unofficial |
+| **Linux ⇄ Android** | **Yes (Any Browser)** | :x: | Requires App | WebRTC | Requires App |
+| **Works with No Internet / No Router** | **Yes (Built-in Hotspot)** | Apple-only | :x: Needs Wi-Fi | :x: Needs Web | :x: Needs Wi-Fi |
+| **Zero App on Receiving Device** | **Yes (Camera QR)** | Built-in (iOS) | :x: | Yes | :x: |
+| **Bi-directional Clipboard (Text & Photos)** | **Yes** | Apple-only | Yes (with app) | Text-only | Yes (with app) |
+| **Gigabit Streaming Engine** | **Yes (8MB Chunks)** | High | High | Low (WebRTC) | Medium |
+| **Cloud Independence** | **100% Local** | iCloud Auth | 100% Local | STUN/TURN | 100% Local |
+
+The integrated **one-click Linux hotspot controller** + **zero-install browser bridge** is the differentiator: you never have to ask a colleague or friend to install an app just to send a file.
 
 ---
 
-## Project Structure
+## Device Compatibility Matrix
 
-```
-hotspot-share/
-├── assets/
-│   ├── icons/                   # Standard FreeDesktop hicolor icons (16x16 to 512x512 & SVG)
-│   └── screenshots/             # Store listing screenshots
-├── extensions/
-│   └── nautilus/                # Nautilus right-click context menu extension
-├── gui/
-│   ├── gui.c                    # Native GTK3 / WebKit2GTK desktop launcher
-│   └── hotspot-share-gui        # Compiled native executable
-├── packaging/
-│   ├── appstream/               # AppStream 1.0 metadata (org.yab.hotspotshare.metainfo.xml)
-│   ├── debian/                  # Debian package control, rules, and changelog
-│   ├── desktop/                 # XDG desktop entry (hotspot-share.desktop)
-│   ├── flatpak/                 # Flathub Flatpak manifest
-│   └── snap/                    # Ubuntu Snapcraft recipe (snapcraft.yaml)
-├── src/
-│   └── hotspot_share/           # Modular Python backend
-│       ├── __init__.py
-│       ├── auth.py              # PIN pairing & token authorization
-│       ├── cli.py               # CLI entrypoint and terminal dashboard
-│       ├── clipboard.py         # Cross-desktop Wayland / X11 clipboard engine
-│       ├── config.py            # XDG directories & runtime path resolver
-│       ├── devices.py           # Device tracker & model heuristics
-│       ├── hotspot.py           # NetworkManager AP controller
-│       ├── notifications.py     # Desktop notification manager
-│       ├── qr.py                # ISO/IEC 18004 pure-Python QR generator
-│       ├── server.py            # High-throughput HTTP server & API
-│       └── transfers.py         # Live progress & transfer tracker
-├── web/
-│   ├── app.js                   # Frontend JavaScript transfer engine
-│   ├── index.html               # Responsive web UI template
-│   ├── manifest.json            # PWA manifest
-│   └── style.css                # Modern glassmorphism CSS
-├── install.sh                   # 1-command installer script
-├── Makefile                     # Build & installation targets
-└── setup.py                     # Python package definition
-```
+| Host (Linux Laptop / PC) | Companion Device | Supported Browsers | Native App Needed? | Transport |
+| :--- | :--- | :--- | :---: | :--- |
+| **Linux** (Ubuntu, Fedora, Arch, Debian) | **iPhone / iPad (iOS 15+)** | Safari, Chrome, Firefox, Orion | **None (0 Install)** | Local Wi-Fi / Hotspot |
+| **Linux** | **Android Phones & Tablets** | Chrome, Samsung Internet, Firefox | **None (0 Install)** | Local Wi-Fi / Hotspot |
+| **Linux** | **Windows 10 / 11** | Edge, Chrome, Firefox, Brave | **None (0 Install)** | Local Wi-Fi / Hotspot |
+| **Linux** | **macOS (MacBook / iMac)** | Safari, Chrome, Arc, Firefox | **None (0 Install)** | Local Wi-Fi / Hotspot |
+| **Linux** | **Linux Peer** | Any browser or native client | **Optional** | Local Wi-Fi / Hotspot |
+
+---
+
+## Security, Privacy & Threat Model
+
+Technical Linux users ask the right question first: **"Why should I trust this?"**
+
+* **Zero Telemetry Guarantee**: Exactly **0 bytes** ever leave your local computer. There are no analytics pings, no cloud telemetry, and no tracking pixels.
+* **Directory Boundary Sandboxing**: The server jails all file requests to `~/HotspotShare` using Python's `pathlib.Path.resolve().is_relative_to()`. Any attempt to traverse directories (`../`) or follow untrusted symlinks is blocked with HTTP 403.
+* **Cryptographic PIN Pairing**: High-entropy 4-digit PIN generated via Python's standard `secrets` module. Timing-attack protected via `secrets.compare_digest()`. IP brute-force throttled after 5 attempts.
+* **Least Privilege**: Remote peer devices **cannot delete files** on the host. The `/api/delete` endpoint strictly verifies `is_client_local()`.
+* **Verified Zero External Python Dependencies**: The backend runs purely on the audited Python 3 standard library (`http.server`, `socket`, `threading`, `secrets`, `pathlib`).
+
+Read the full threat model in [`SECURITY.md`](SECURITY.md).
 
 ---
 
 ## Installation
 
-### Method 1: 1-Command Installer (Recommended)
+### Method 1: Canonical Snap Store (Recommended on Ubuntu)
+
+Available directly in **Ubuntu App Center** or via terminal:
+
+```bash
+sudo snap install hotspot-share
+```
+
+### Method 2: Debian / Ubuntu Package (.deb)
+
+Download the `.deb` from the [latest GitHub Release](https://github.com/penguinatnight/hotspot-share/releases/latest) and install:
+
+```bash
+sudo apt install ./hotspot-share_*_amd64.deb
+```
+
+### Method 3: From Source (Quick User Install)
 
 ```bash
 git clone https://github.com/penguinatnight/hotspot-share.git
 cd hotspot-share
-./install.sh
-```
-
-### Method 2: Manual Makefile Build
-
-```bash
-# Install build dependencies on Ubuntu / Debian:
-sudo apt install -y gcc pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev python3 wl-clipboard
-
-# Compile and install for current user:
 make install-user
-
-# Or install system-wide (requires root):
-sudo make install
+hotspot-share-gui
 ```
 
 ---
 
 ## Usage
 
-### Launching the Desktop UI
-Launch **Hotspot Share** from your application menu or run:
+### Desktop Graphical Interface
+Launch **Hotspot Share** from your application menu or terminal:
 ```bash
 hotspot-share-gui
 ```
 
-### Running in Headless Server Mode (CLI)
-For servers, headless setups, or terminal enthusiasts:
+### Headless Server / CLI Mode
+For servers, homelabs, or SSH terminal workflows:
 ```bash
-# Start default server on dynamic port
+# Start server on dynamic port
 hotspot-share
 
-# Start on port 9000 saving to a custom directory
-hotspot-share -p 9000 -d ~/MySharedFiles
+# Start on port 9000 with a custom directory
+hotspot-share -p 9000 -d ~/MyTransfers
 
 # Enable 4-digit PIN pairing security
 hotspot-share --auth
@@ -138,36 +134,28 @@ hotspot-share --auth
 # Enable ephemeral TLS/HTTPS encryption
 hotspot-share --ssl
 
-# Automatically create a Wi-Fi hotspot named "MyLaptopHotspot"
-hotspot-share --hotspot MyLaptopHotspot
+# Automatically create a Wi-Fi hotspot named "LinuxShare"
+hotspot-share --hotspot LinuxShare
 ```
 
 ---
 
-## Ubuntu App Center / Snap Publishing Guide
+## Automated Test Suite
 
-To build and publish to the official **Ubuntu App Center**:
+Hotspot Share includes 58 automated unit tests covering cryptographic authorization, chunked resumable transfers, security boundaries, and discovery:
 
-1. **Test the Snap package locally**:
-   ```bash
-   sudo snap install snapcraft --classic
-   snapcraft --destructive-mode
-   sudo snap install hotspot-share_2.0.0_amd64.snap --dangerous
-   ```
+```bash
+make test
+```
 
-2. **Register the app name on Snapcraft**:
-   ```bash
-   snapcraft login
-   snapcraft register hotspot-share
-   ```
+---
 
-3. **Upload to Candidate Channel**:
-   ```bash
-   snapcraft upload --release=candidate hotspot-share_2.0.0_amd64.snap
-   ```
+## Contributing
+
+We welcome pull requests, security audits, and issue reports. Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for local development guidelines.
 
 ---
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**. See [`LICENSE`](LICENSE) for details.
+Licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**. See [`LICENSE`](LICENSE) for details.
