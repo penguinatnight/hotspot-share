@@ -64,7 +64,6 @@ parts:
       packaging/desktop/hotspot-share.desktop: usr/share/applications/hotspot-share.desktop
       packaging/appstream/org.yab.hotspotshare.metainfo.xml: usr/share/metainfo/org.yab.hotspotshare.metainfo.xml
       assets/icons/hicolor: usr/share/icons/hicolor
-      assets/icons/hotspot-share.svg: usr/share/icons/hicolor/scalable/apps/hotspot-share.svg
       web: usr/share/hotspot-share/web
 
   backend:

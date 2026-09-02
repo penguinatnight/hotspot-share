@@ -304,6 +304,13 @@ int main(int argc, char *argv[]) {
 
     GtkWidget *web_view = webkit_web_view_new_with_settings(settings);
     
+    // Disable stale disk caching so user always sees the latest live UI
+    WebKitWebContext *web_context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(web_view));
+    if (web_context) {
+        webkit_web_context_set_cache_model(web_context, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
+        webkit_web_context_clear_cache(web_context);
+    }
+
     GdkRGBA bg_color = { 0.0, 0.0, 0.0, 1.0 };
     webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(web_view), &bg_color);
 
