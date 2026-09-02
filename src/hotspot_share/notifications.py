@@ -12,14 +12,13 @@ def notify(title: str, message: str, urgency: str = "normal", icon_path: str = N
         "notify-send",
         "-a", "Hotspot Share",
         "-u", urgency,
-        title,
-        message
     ]
     if icon:
         cmd.extend(["-i", icon])
+    cmd.extend([title, message])
 
     try:
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(cmd, timeout=1, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
 

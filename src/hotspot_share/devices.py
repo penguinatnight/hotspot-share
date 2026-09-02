@@ -3,6 +3,7 @@ import json
 import time
 import socket
 import re
+import threading
 from pathlib import Path
 from .config import get_config_dir
 
@@ -67,43 +68,67 @@ MODEL_MAP = {
 def get_device_config_file() -> Path:
     return get_config_dir() / "devices.json"
 
+_device_cfg_lock = threading.RLock()
+_cached_devices_data = None
+
 def load_saved_devices():
-    cfg = get_device_config_file()
-    if cfg.exists():
-        try:
-            return json.loads(cfg.read_text(encoding='utf-8'))
-        except Exception:
-            pass
-    return {}
+    global _cached_devices_data
+    with _device_cfg_lock:
+        if _cached_devices_data is not None:
+            return dict(_cached_devices_data)
+        cfg = get_device_config_file()
+        if cfg.exists():
+            try:
+                _cached_devices_data = json.loads(cfg.read_text(encoding='utf-8'))
+                return dict(_cached_devices_data)
+            except Exception:
+                pass
+        _cached_devices_data = {}
+        return dict(_cached_devices_data)
 
 def save_device_name(key, name):
-    try:
-        cfg = get_device_config_file()
-        data = load_saved_devices()
-        if name and name.strip():
-            data[key] = name.strip()
-        else:
-            data.pop(key, None)
-        cfg.write_text(json.dumps(data, indent=2), encoding='utf-8')
-    except Exception:
-        pass
+    global _cached_devices_data
+    with _device_cfg_lock:
+        try:
+            cfg = get_device_config_file()
+            data = load_saved_devices()
+            name_clean = name.strip() if name else ""
+            if name_clean:
+                if data.get(key) == name_clean:
+                    return
+                data[key] = name_clean
+            else:
+                if key not in data:
+                    return
+                data.pop(key, None)
+            _cached_devices_data = dict(data)
+            cfg.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        except Exception:
+            pass
 
 def save_device_storage(key, storage_data):
-    try:
-        cfg = get_device_config_file()
-        data = load_saved_devices()
-        data[f"storage_{key}"] = storage_data
-        cfg.write_text(json.dumps(data, indent=2), encoding='utf-8')
-    except Exception:
-        pass
+    global _cached_devices_data
+    with _device_cfg_lock:
+        try:
+            cfg = get_device_config_file()
+            data = load_saved_devices()
+            storage_key = f"storage_{key}"
+            if data.get(storage_key) == storage_data:
+                return
+            data[storage_key] = storage_data
+            _cached_devices_data = dict(data)
+            cfg.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        except Exception:
+            pass
 
 def get_pc_device_name():
     saved = load_saved_devices().get('__pc_name__')
     if saved:
         return saved
     try:
-        if Path("/etc/machine-info").exists():
-            for line in Path("/etc/machine-info").read_text().splitlines():
+        machine_info = Path("/etc/machine-info")
+        if machine_info.exists():
+            for line in machine_info.read_text(encoding='utf-8', errors='ignore').splitlines():
                 if line.startswith("PRETTY_HOSTNAME="):
                     val = line.split("=", 1)[1].strip('"\'')
                     if val: return val
@@ -166,44 +191,54 @@ def resolve_device_name(model, ua, nickname='', client_ip=''):
 
 class DeviceTracker:
     active_sessions = {}
+    _lock = threading.Lock()
 
     @classmethod
-    def register_heartbeat(cls, client_ip, ua, model='', nickname='', storage=None):
-        now = time.time()
-        cls.clean_stale_sessions()
+    def register_heartbeat(cls, client_ip, ua='', model='', nickname='', storage=None):
+        with cls._lock:
+            now = time.time()
+            cls._clean_stale_sessions_unlocked(now)
 
-        dev_name = resolve_device_name(model, ua, nickname, client_ip)
-        is_new = client_ip not in cls.active_sessions
+            dev_name = resolve_device_name(model, ua, nickname, client_ip)
+            is_new = client_ip not in cls.active_sessions
 
-        cls.active_sessions[client_ip] = {
-            'last_seen': now,
-            'device_name': dev_name,
-            'ip': client_ip,
-            'ua': ua,
-            'model': model,
-            'nickname': nickname or (load_saved_devices().get(client_ip, '')),
-            'storage': storage or (load_saved_devices().get(f"storage_{client_ip}")),
-            'is_phone': any(x in ua.lower() or x in model.lower() for x in ('android', 'iphone', 'mobile', 'sm-', 'cph', 'pixel'))
-        }
+            cls.active_sessions[client_ip] = {
+                'last_seen': now,
+                'device_name': dev_name,
+                'ip': client_ip,
+                'ua': ua,
+                'model': model,
+                'nickname': nickname or (load_saved_devices().get(client_ip, '')),
+                'storage': storage or (load_saved_devices().get(f"storage_{client_ip}")),
+                'is_phone': any(x in ua.lower() or x in model.lower() for x in ('android', 'iphone', 'mobile', 'sm-', 'cph', 'pixel'))
+            }
 
-        if storage:
-            save_device_storage(client_ip, storage)
+            if storage:
+                save_device_storage(client_ip, storage)
 
-        return is_new
+            return is_new
 
     @classmethod
-    def clean_stale_sessions(cls):
-        now = time.time()
+    def _clean_stale_sessions_unlocked(cls, now=None):
+        if now is None:
+            now = time.time()
         timeout = 16.0
         stale = [ip for ip, sess in cls.active_sessions.items() if now - sess['last_seen'] > timeout]
         for ip in stale:
             cls.active_sessions.pop(ip, None)
 
     @classmethod
+    def clean_stale_sessions(cls):
+        with cls._lock:
+            cls._clean_stale_sessions_unlocked()
+
+    @classmethod
     def get_connected_phones(cls):
-        cls.clean_stale_sessions()
-        return [sess for ip, sess in cls.active_sessions.items() if not is_local_ip(ip)]
+        with cls._lock:
+            cls._clean_stale_sessions_unlocked()
+            return [dict(sess) for ip, sess in cls.active_sessions.items() if not is_local_ip(ip)]
 
     @classmethod
     def is_phone_connected(cls):
         return len(cls.get_connected_phones()) > 0
+

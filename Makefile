@@ -23,6 +23,7 @@ clean:
 	rm -rf build dist *.egg-info __pycache__ src/*/__pycache__ debian/hotspot-share debian/.debhelper *.deb *.snap
 
 test:
+	PYTHONPATH=src $(PYTHON) -m unittest discover tests
 	PYTHONPATH=src $(PYTHON) -m hotspot_share.cli --version
 
 deb:

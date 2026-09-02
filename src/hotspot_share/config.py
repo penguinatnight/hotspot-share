@@ -32,11 +32,15 @@ def get_runtime_dir() -> Path:
     if xdg_runtime:
         base = Path(xdg_runtime)
     else:
-        user = os.environ.get("USER", "default")
-        base = Path(f"/tmp/hotspot-share-runtime-{user}")
+        uid = os.getuid() if hasattr(os, "getuid") else "default"
+        base = Path(f"/tmp/hotspot-share-runtime-{uid}")
     runtime_dir = base / APP_NAME
     try:
         runtime_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(runtime_dir, 0o700)
+        except OSError:
+            pass
     except Exception:
         fallback = Path.home() / ".cache" / APP_NAME
         fallback.mkdir(parents=True, exist_ok=True)
@@ -44,11 +48,31 @@ def get_runtime_dir() -> Path:
     return runtime_dir
 
 def get_default_share_dir() -> Path:
-    # Try XDG download or Desktop
+    # 1. Check XDG_DOWNLOAD_DIR env var
     xdg_download = os.environ.get("XDG_DOWNLOAD_DIR")
     if xdg_download and Path(xdg_download).exists():
         target = Path(xdg_download) / "HotspotShare"
-    elif (Path.home() / "Downloads").exists():
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    # 2. Check ~/.config/user-dirs.dirs
+    user_dirs_file = Path.home() / ".config" / "user-dirs.dirs"
+    if user_dirs_file.is_file():
+        try:
+            for line in user_dirs_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.startswith("XDG_DOWNLOAD_DIR="):
+                    val = line.split("=", 1)[1].strip('"\'')
+                    val = val.replace("$HOME", str(Path.home()))
+                    p = Path(val)
+                    if p.exists():
+                        target = p / "HotspotShare"
+                        target.mkdir(parents=True, exist_ok=True)
+                        return target
+        except Exception:
+            pass
+
+    # 3. Fallbacks
+    if (Path.home() / "Downloads").exists():
         target = Path.home() / "Downloads" / "HotspotShare"
     elif (Path.home() / "Desktop").exists():
         target = Path.home() / "Desktop" / "from-phone"
@@ -63,14 +87,19 @@ def get_web_dir() -> Path:
     if source_web.exists() and (source_web / "index.html").exists():
         return source_web
 
-    # 2. Check SNAP environment
+    # 2. Check within installed python package data
+    pkg_web = Path(__file__).resolve().parent / "web"
+    if pkg_web.exists() and (pkg_web / "index.html").exists():
+        return pkg_web
+
+    # 3. Check SNAP environment
     snap_path = os.environ.get("SNAP")
     if snap_path:
         snap_web = Path(snap_path) / "share" / APP_NAME / "web"
         if snap_web.exists():
             return snap_web
 
-    # 3. Check standard system locations
+    # 4. Check standard system locations
     system_paths = [
         Path("/usr/share") / APP_NAME / "web",
         Path("/usr/local/share") / APP_NAME / "web",
@@ -118,6 +147,7 @@ def get_icon_file(size=512, ext="png") -> Path:
 def write_runtime_info(port: int, primary_ip: str, url: str, token: str = None, pid: int = None):
     r_dir = get_runtime_dir()
     info_file = r_dir / "server.json"
+    temp_file = r_dir / f"server.json.tmp.{os.getpid()}"
     data = {
         "pid": pid or os.getpid(),
         "port": port,
@@ -127,9 +157,13 @@ def write_runtime_info(port: int, primary_ip: str, url: str, token: str = None, 
         "status": "running"
     }
     try:
-        info_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        temp_file.replace(info_file)
     except Exception:
-        pass
+        try:
+            info_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
 def read_runtime_info() -> dict:
     r_dir = get_runtime_dir()

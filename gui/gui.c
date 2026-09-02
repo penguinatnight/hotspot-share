@@ -186,12 +186,31 @@ static void on_tray_activate(GtkStatusIcon *status_icon, gpointer user_data) {
     }
 }
 
-static void on_tray_quit(GtkWidget *widget, gpointer data) {
-    if (server_pid > 0) {
-        kill(server_pid, SIGTERM);
+static void stop_backend_server(void) {
+    if (server_pid <= 0) return;
+    pid_t pid = server_pid;
+    server_pid = -1;
+
+    kill(pid, SIGTERM);
+
+    // Wait up to 1.5 seconds for graceful shutdown
+    for (int i = 0; i < 15; i++) {
         int status;
-        waitpid(server_pid, &status, WNOHANG);
+        pid_t res = waitpid(pid, &status, WNOHANG);
+        if (res == pid || res == -1) {
+            return;
+        }
+        g_usleep(100000); // 100ms
     }
+
+    // Force kill if still running
+    kill(pid, SIGKILL);
+    int status;
+    waitpid(pid, &status, 0);
+}
+
+static void on_tray_quit(GtkWidget *widget, gpointer data) {
+    stop_backend_server();
     gtk_main_quit();
 }
 
@@ -214,11 +233,7 @@ static void on_tray_popup_menu(GtkStatusIcon *status_icon, guint button, guint a
 }
 
 static void on_window_destroy(GtkWidget *widget, gpointer data) {
-    if (server_pid > 0) {
-        kill(server_pid, SIGTERM);
-        int status;
-        waitpid(server_pid, &status, WNOHANG);
-    }
+    stop_backend_server();
     gtk_main_quit();
 }
 

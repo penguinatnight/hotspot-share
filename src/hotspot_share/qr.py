@@ -4,6 +4,7 @@ Outputs directly to Terminal (Unicode blocks) or SVG.
 """
 
 def generate_qr_matrix(text, version=None, ec_level='L'):
+    # Table format: (data_codewords, ec_codewords_per_block, num_blocks, align_coords)
     TABLE_L = {
         1: (19, 7, 1, []),
         2: (34, 10, 1, [6, 18]),
@@ -21,22 +22,36 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
         6: (108, 16, 4, [6, 34]),
     }
 
-    TABLE = TABLE_M if ec_level.upper() == 'M' else TABLE_L
     raw_data = text.encode('utf-8')
     data_len = len(raw_data)
 
+    eff_ec = ec_level.upper()
+    TABLE = TABLE_M if eff_ec == 'M' else TABLE_L
+
     if version is None:
+        # Check if it fits in chosen level
         for v in range(1, 7):
-            tot_bytes, ec_bytes, blocks, _ = TABLE[v]
-            cap = tot_bytes - (ec_bytes * blocks) - 3
+            data_codewords, _, _, _ = TABLE[v]
+            cap = data_codewords - 3  # 4-bit mode + 8-bit length + terminator
             if data_len <= cap:
                 version = v
                 break
+        
+        # If it doesn't fit in M, fallback to L which has ~30% higher capacity
+        if version is None and eff_ec == 'M':
+            eff_ec = 'L'
+            TABLE = TABLE_L
+            for v in range(1, 7):
+                data_codewords, _, _, _ = TABLE[v]
+                cap = data_codewords - 3
+                if data_len <= cap:
+                    version = v
+                    break
+
         if version is None:
             version = 6
 
-    tot_bytes, ec_bytes, num_blocks, align_coords = TABLE[version]
-    data_cap = tot_bytes - (ec_bytes * num_blocks)
+    data_cap, ec_bytes, num_blocks, align_coords = TABLE[version]
 
     # 1. Encode Data
     bits = []
@@ -44,7 +59,7 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
         for i in range(count - 1, -1, -1):
             bits.append((val >> i) & 1)
 
-    add_bits(0b0100, 4)
+    add_bits(0b0100, 4)  # 8-bit byte mode
     add_bits(data_len, 8 if version < 10 else 16)
     for b in raw_data:
         add_bits(b, 8)
@@ -69,7 +84,11 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
         data_bytes.append(pad_patterns[p_idx % 2])
         p_idx += 1
 
-    # 2. Error Correction (Reed-Solomon)
+    # Truncate to capacity if text exceeds version 6 limit
+    if len(data_bytes) > data_cap:
+        data_bytes = data_bytes[:data_cap]
+
+    # 2. Error Correction (Reed-Solomon over GF(256))
     exp = [0] * 512
     log = [0] * 256
     x = 1
@@ -84,13 +103,14 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
         return 0 if (a == 0 or b == 0) else exp[(log[a] + log[b]) % 255]
 
     def rs_poly(nsym):
+        # Generates (x - a^0)(x - a^1)...(x - a^(nsym-1)) in highest-degree first order
         g = [1]
         for i in range(nsym):
             ng = [0] * (len(g) + 1)
             f = exp[i]
             for j, c in enumerate(g):
-                ng[j] ^= gmult(c, f)
-                ng[j + 1] ^= c
+                ng[j] ^= c
+                ng[j + 1] ^= gmult(c, f)
             g = ng
         return g
 
@@ -165,7 +185,7 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
     for r in range(size - 7, size):
         if grid[r][8] is None: set_res(r, 8, False)
 
-    # Place data bits with zig-zag
+    # Place data bits with zig-zag pattern
     all_bits = []
     for b in interleaved:
         for i in range(7, -1, -1):
@@ -188,8 +208,8 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
         direction = -direction
         c -= 2
 
-    # Format info (Mask 000, EC Level L or M)
-    fmt_bits = 0x77C4 if ec_level.upper() == 'M' else 0x7EC5
+    # Format info (Mask 000: EC Level L is 0x77C4, Level M is 0x5412)
+    fmt_bits = 0x5412 if eff_ec == 'M' else 0x77C4
     for i in range(15):
         bit = (fmt_bits >> (14 - i)) & 1
         if i < 6: grid[8][i] = (bit, True)
@@ -202,8 +222,8 @@ def generate_qr_matrix(text, version=None, ec_level='L'):
 
     return [[grid[r][c][0] for c in range(size)] for r in range(size)]
 
-def get_terminal_qr(text, indent=4):
-    matrix = generate_qr_matrix(text, ec_level='M')
+def get_terminal_qr(text, indent=4, ec_level='M'):
+    matrix = generate_qr_matrix(text, ec_level=ec_level)
     size = len(matrix)
     pad = 2
     full_size = size + pad * 2
@@ -230,8 +250,8 @@ def get_terminal_qr(text, indent=4):
         out.append("".join(line))
     return "\n".join(out)
 
-def get_svg_qr(text):
-    matrix = generate_qr_matrix(text, ec_level='M')
+def get_svg_qr(text, ec_level='M'):
+    matrix = generate_qr_matrix(text, ec_level=ec_level)
     size = len(matrix)
     pad = 2
     total = size + pad * 2
@@ -243,9 +263,19 @@ def get_svg_qr(text):
     path_d = "".join(paths)
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total} {total}" shape-rendering="crispEdges" class="qr-svg"><rect width="100%" height="100%" fill="white"/><path d="{path_d}" fill="black"/></svg>'
 
+def escape_wifi_str(s: str) -> str:
+    """Escapes special characters in Wi-Fi SSID and password according to ZXing standard."""
+    s = str(s or '').replace('\\', '\\\\')
+    for ch in [';', ':', ',', '"']:
+        s = s.replace(ch, f'\\{ch}')
+    return s
+
 def get_wifi_qr_text(ssid: str, password: str = "", security: str = "WPA") -> str:
     """Returns standard Wi-Fi configuration string for QR scanning."""
     sec = security.upper()
+    esc_ssid = escape_wifi_str(ssid)
     if not password or sec == "NOPASS":
-        return f"WIFI:T:nopass;S:{ssid};;;"
-    return f"WIFI:T:{sec};S:{ssid};P:{password};;"
+        return f"WIFI:T:nopass;S:{esc_ssid};;;"
+    esc_pass = escape_wifi_str(password)
+    return f"WIFI:T:{sec};S:{esc_ssid};P:{esc_pass};;"
+

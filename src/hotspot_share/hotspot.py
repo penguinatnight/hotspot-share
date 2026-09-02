@@ -1,7 +1,7 @@
 import subprocess
 import shutil
 import re
-import random
+import secrets
 import string
 import socket
 
@@ -27,10 +27,26 @@ def get_active_hotspot() -> dict:
         return {"active": False}
     try:
         out = subprocess.check_output(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active"], text=True)
+        candidates = []
         for line in out.splitlines():
             parts = line.strip().split(":")
-            if len(parts) >= 3 and parts[1] in ("802-11-wireless", "wifi") and "hotspot" in parts[0].lower():
-                return {"active": True, "name": parts[0], "device": parts[2]}
+            if len(parts) >= 3 and parts[1] in ("802-11-wireless", "wifi"):
+                name_low = parts[0].lower()
+                if "hotspot" in name_low or "share" in name_low:
+                    return {"active": True, "name": parts[0], "device": parts[2]}
+                candidates.append((parts[0], parts[2]))
+
+        # If candidates exist, check connection settings for 802-11-wireless.mode ap
+        for con_name, dev in candidates:
+            try:
+                con_mode = subprocess.check_output(
+                    ["nmcli", "-t", "-f", "802-11-wireless.mode", "connection", "show", con_name],
+                    text=True, stderr=subprocess.DEVNULL
+                ).strip()
+                if "ap" in con_mode.lower():
+                    return {"active": True, "name": con_name, "device": dev}
+            except Exception:
+                pass
     except Exception:
         pass
     return {"active": False}
@@ -39,7 +55,7 @@ def generate_default_credentials():
     host = socket.gethostname().split('.')[0].capitalize()
     ssid = f"{host}-Share"
     chars = string.ascii_letters + string.digits
-    password = ''.join(random.choice(chars) for _ in range(10))
+    password = ''.join(secrets.choice(chars) for _ in range(10))
     return ssid, password
 
 def start_hotspot(ssid: str = None, password: str = None, ifname: str = None) -> dict:
@@ -77,12 +93,20 @@ def stop_hotspot(ifname: str = None) -> dict:
         return {"status": "error", "message": "NetworkManager is not available."}
 
     active = get_active_hotspot()
-    if not active.get("active"):
-        return {"status": "ok", "message": "No active hotspot found."}
+    if active.get("active"):
+        con_name = active.get("name", "Hotspot")
+        try:
+            proc = subprocess.run(["nmcli", "connection", "down", con_name], capture_output=True, text=True, timeout=10)
+            return {"status": "ok", "message": "Hotspot stopped."}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
-    con_name = active.get("name", "Hotspot")
-    try:
-        proc = subprocess.run(["nmcli", "connection", "down", con_name], capture_output=True, text=True, timeout=10)
-        return {"status": "ok", "message": "Hotspot stopped."}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    if ifname:
+        try:
+            subprocess.run(["nmcli", "device", "disconnect", ifname], capture_output=True, text=True, timeout=10)
+            return {"status": "ok", "message": f"Disconnected interface {ifname}."}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    return {"status": "ok", "message": "No active hotspot found."}
+

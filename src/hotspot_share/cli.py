@@ -17,6 +17,19 @@ from .server import (
     ThreadedHTTPServer, HotspotHandler, get_local_ips, get_disk_stats, Stats
 )
 
+import re
+
+ANSI_REGEX = re.compile(r'\x1b\[[0-9;]*m')
+
+def visible_len(s: str) -> int:
+    return len(ANSI_REGEX.sub('', s))
+
+def print_box_line(left_content: str, right_content: str = "", width: int = 68):
+    vis_l = visible_len(left_content)
+    vis_r = visible_len(right_content)
+    pad = max(0, width - vis_l - vis_r)
+    print(f"\033[1;37m│\033[0m{left_content}{' ' * pad}{right_content}\033[1;37m│\033[0m")
+
 def main():
     default_dir = str(get_default_share_dir())
     parser = argparse.ArgumentParser(
@@ -90,27 +103,26 @@ def main():
 
     W = 68
     print("\n\033[1;37m┌" + "─" * W + "┐\033[0m")
-    print(f"\033[1;37m│\033[0m  \033[1;37mHOTSPOT SHARE v{__version__}\033[0m" + " " * (W - 24 - len(__version__)) + "\033[32;1m[RUNNING]\033[0m  \033[1;37m│\033[0m")
+    print_box_line(f"  \033[1;37mHOTSPOT SHARE v{__version__}\033[0m", "\033[32;1m[RUNNING]\033[0m  ", W)
     print("\033[1;37m├" + "─" * W + "┤\033[0m")
-    print(f"\033[1;37m│\033[0m  \033[1mWeb Interface\033[0m : \033[1;36m{phone_url:<50}\033[0m \033[1;37m│\033[0m")
-    print(f"\033[1;37m│\033[0m  \033[1mSave Location\033[0m : \033[33m{str(shared_path):<50}\033[0m \033[1;37m│\033[0m")
-    print(f"\033[1;37m│\033[0m  \033[1mDisk Space\033[0m    : \033[37m{disk_str:<50}\033[0m \033[1;37m│\033[0m")
-    print(f"\033[1;37m│\033[0m  \033[1mLocal IP\033[0m      : \033[37m{primary_ip} (Port {port}){'':<33}\033[0m \033[1;37m│\033[0m")
+    print_box_line(f"  \033[1mWeb Interface\033[0m : \033[1;36m{phone_url}\033[0m", "", W)
+    print_box_line(f"  \033[1mSave Location\033[0m : \033[33m{str(shared_path)}\033[0m", "", W)
+    print_box_line(f"  \033[1mDisk Space\033[0m    : \033[37m{disk_str}\033[0m", "", W)
+    print_box_line(f"  \033[1mLocal IP\033[0m      : \033[37m{primary_ip} (Port {port})\033[0m", "", W)
     if pin:
-        print(f"\033[1;37m│\033[0m  \033[1;33mPairing PIN\033[0m   : \033[1;32m{pin:<50}\033[0m \033[1;37m│\033[0m")
+        print_box_line(f"  \033[1;33mPairing PIN\033[0m   : \033[1;32m{pin}\033[0m", "", W)
     print("\033[1;37m├" + "─" * W + "┤\033[0m")
     
     if not args.no_qr:
-        print("\033[1;37m│\033[0m  \033[90mScan QR code with mobile camera to connect:\033[0m" + " " * (W - 47) + "\033[1;37m│\033[0m")
-        print("\033[1;37m│\033[0m" + " " * W + "\033[1;37m│\033[0m")
-        qr_lines = get_terminal_qr(phone_url, indent=16).split('\n')
+        print_box_line("  \033[90mScan QR code with mobile camera to connect:\033[0m", "", W)
+        print_box_line("", "", W)
+        qr_lines = get_terminal_qr(phone_url, indent=14).split('\n')
         for ql in qr_lines:
-            padded = ql.ljust(W)
-            print(f"\033[1;37m│\033[0m{padded}\033[1;37m│\033[0m")
-        print("\033[1;37m│\033[0m" + " " * W + "\033[1;37m│\033[0m")
+            print_box_line(ql, "", W)
+        print_box_line("", "", W)
         print("\033[1;37m├" + "─" * W + "┤\033[0m")
 
-    print(f"\033[1;37m│\033[0m  \033[1;37mACTIVITY LOG\033[0m" + " " * (W - 34) + "\033[90m[Press Ctrl+C to stop]\033[0m  \033[1;37m│\033[0m")
+    print_box_line("  \033[1;37mACTIVITY LOG\033[0m", "\033[90m[Press Ctrl+C to stop]\033[0m  ", W)
     print("\033[1;37m└" + "─" * W + "┘\033[0m\n")
 
     try:

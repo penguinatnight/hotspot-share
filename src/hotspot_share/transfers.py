@@ -144,6 +144,11 @@ class TransferTracker:
                         cls.transfers.pop(tx_id, None)
                         cls.cancelled_transfers.pop(tx_id, None)
 
+            # Also prune cancelled transfers older than 5 minutes
+            for cid, ctime in list(cls.cancelled_transfers.items()):
+                if now - ctime > 300:
+                    cls.cancelled_transfers.pop(cid, None)
+
             def sanitize(d):
                 return {k: v for k, v in d.items() if isinstance(v, (int, float, str, bool, list, dict))}
 
