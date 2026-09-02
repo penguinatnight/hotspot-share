@@ -255,6 +255,8 @@ int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
     setenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1", 1);
+    setenv("GIO_USE_NETWORK_MONITOR", "base", 1);
+    setenv("NO_AT_BRIDGE", "1", 1);
 
     gtk_init(&argc, &argv);
 
@@ -315,6 +317,7 @@ int main(int argc, char *argv[]) {
     if (web_context) {
         webkit_web_context_set_cache_model(web_context, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
         webkit_web_context_clear_cache(web_context);
+        webkit_web_context_set_network_proxy_settings(web_context, WEBKIT_NETWORK_PROXY_MODE_NO_PROXY, NULL);
     }
 
     GdkRGBA bg_color = { 0.05, 0.07, 0.09, 1.0 };
