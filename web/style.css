@@ -1087,6 +1087,39 @@ main {
 }
 .pf-item b { color: var(--text-primary); }
 
+.pf-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.pf-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--text-primary);
+}
+
+.pulse-highlight {
+  animation: qrPulse 1.2s ease-in-out !important;
+  border-color: var(--success) !important;
+}
+@keyframes qrPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(50, 215, 75, 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 0 0 12px rgba(50, 215, 75, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(50, 215, 75, 0); }
+}
+
+.dropzone.waiting-for-phone {
+  border-style: dashed;
+  opacity: 0.9;
+}
+
 /* Slide 3: Scan Demo */
 .scan-demo {
   display: flex;
@@ -1233,3 +1266,12 @@ main {
   cursor: pointer;
 }
 .btn-onboard-next:active { opacity: 0.85; }
+
+@media (max-width: 600px) {
+  #tourBtn {
+    display: none !important;
+  }
+  #onboardingOverlay {
+    display: none !important;
+  }
+}

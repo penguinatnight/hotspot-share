@@ -397,26 +397,67 @@ async function sendHeartbeatAndPollStatus() {
 
     if (isLocalClient) {
       // Desktop View
+      const btnFiles = document.getElementById('btnSelectFiles');
+      const btnFolder = document.getElementById('btnSelectFolder');
+      const dzTitle = document.getElementById('dropzoneTitle');
+      const dzSub = document.getElementById('dropzoneSubtitle');
+      const dropzoneEl = document.getElementById('dropzone');
+
       if (data.connected && data.phones && data.phones.length > 0) {
         const p = data.phones[0];
         currentConnectedPhoneIp = p.ip;
-        currentConnectedPhoneName = p.device_name;
+        currentConnectedPhoneName = p.device_name || 'Phone';
         beacon.className = 'beacon-dot connected';
-        deviceLabel.innerText = 'Connected: ' + p.device_name;
+        deviceLabel.innerText = 'Connected: ' + currentConnectedPhoneName;
         qrCard.style.display = 'none';
 
+        if (dropzoneEl) dropzoneEl.classList.remove('waiting-for-phone');
+
+        if (btnFiles) {
+          btnFiles.disabled = false;
+          btnFiles.style.opacity = '1';
+          btnFiles.style.cursor = 'pointer';
+          btnFiles.innerText = 'Send Files to ' + currentConnectedPhoneName;
+        }
+        if (btnFolder) {
+          btnFolder.disabled = false;
+          btnFolder.style.opacity = '1';
+          btnFolder.style.cursor = 'pointer';
+          btnFolder.innerText = 'Send Folder to ' + currentConnectedPhoneName;
+        }
+        if (dzTitle) dzTitle.innerText = 'Send files to ' + currentConnectedPhoneName;
+        if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Beam • Instant transfer to ' + currentConnectedPhoneName;
+
         if (p.storage && p.storage.total_bytes > 0) {
-          diskText.innerText = p.device_name + ': ' + p.storage.free_str + ' free | PC: ' + (data.pc_disk ? data.pc_disk.free_str + ' free' : '');
+          diskText.innerText = currentConnectedPhoneName + ': ' + p.storage.free_str + ' free | PC: ' + (data.pc_disk ? data.pc_disk.free_str + ' free' : '');
           diskBar.style.width = p.storage.pct_used + '%';
         } else if (data.pc_disk) {
-          diskText.innerText = p.device_name + ' | PC: ' + data.pc_disk.free_str + ' free / ' + data.pc_disk.total_str;
+          diskText.innerText = currentConnectedPhoneName + ' | PC: ' + data.pc_disk.free_str + ' free / ' + data.pc_disk.total_str;
           diskBar.style.width = data.pc_disk.pct_used + '%';
         }
       } else {
         currentConnectedPhoneIp = '';
         currentConnectedPhoneName = '';
         beacon.className = 'beacon-dot';
-        deviceLabel.innerText = 'Waiting for phone...';
+        deviceLabel.innerText = 'Waiting for phone to connect...';
+
+        if (dropzoneEl) dropzoneEl.classList.add('waiting-for-phone');
+
+        if (btnFiles) {
+          btnFiles.disabled = true;
+          btnFiles.style.opacity = '0.55';
+          btnFiles.style.cursor = 'not-allowed';
+          btnFiles.innerText = 'Connect Phone to Send Files';
+        }
+        if (btnFolder) {
+          btnFolder.disabled = true;
+          btnFolder.style.opacity = '0.55';
+          btnFolder.style.cursor = 'not-allowed';
+          btnFolder.innerText = 'Connect Phone to Send Folder';
+        }
+        if (dzTitle) dzTitle.innerText = 'No phone connected';
+        if (dzSub) dzSub.innerText = 'Scan the QR code above with your phone camera to connect and start sharing';
+
         if (data.pc_disk) {
           diskText.innerText = 'PC: ' + data.pc_disk.free_str + ' free / ' + data.pc_disk.total_str + ' (' + data.pc_disk.pct_free + '% free)';
           diskBar.style.width = data.pc_disk.pct_used + '%';
@@ -428,14 +469,11 @@ async function sendHeartbeatAndPollStatus() {
         }
       }
 
-      const btnFiles = document.getElementById('btnSelectFiles');
-      const btnFolder = document.getElementById('btnSelectFolder');
-      const dzTitle = document.getElementById('dropzoneTitle');
-      const dzSub = document.getElementById('dropzoneSubtitle');
-      if (btnFiles) btnFiles.innerText = 'Send Files to Phone';
-      if (btnFolder) btnFolder.innerText = 'Send Folder to Phone';
-      if (dzTitle) dzTitle.innerText = 'Drop files or folders to send to phone';
-      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Beam • Phone receives instant download';
+      // Auto-trigger onboarding ONLY on PC desktop
+      if (!localStorage.getItem('hotspot_onboarded') && !onboardingTriggered) {
+        onboardingTriggered = true;
+        setTimeout(() => openOnboarding(false), 500);
+      }
     } else {
       // Phone View
       beacon.className = 'beacon-dot connected';
@@ -443,14 +481,34 @@ async function sendHeartbeatAndPollStatus() {
       deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
       qrCard.style.display = 'none';
 
+      // Always hide tour button and onboarding modal on phones
+      const tourBtn = document.getElementById('tourBtn');
+      if (tourBtn) tourBtn.style.display = 'none';
+      const overlay = document.getElementById('onboardingOverlay');
+      if (overlay) overlay.style.display = 'none';
+
       const btnFiles = document.getElementById('btnSelectFiles');
       const btnFolder = document.getElementById('btnSelectFolder');
       const dzTitle = document.getElementById('dropzoneTitle');
       const dzSub = document.getElementById('dropzoneSubtitle');
-      if (btnFiles) btnFiles.innerText = 'Send Files to PC';
-      if (btnFolder) btnFolder.innerText = 'Send Photos / Folder to PC';
-      if (dzTitle) dzTitle.innerText = 'Send files or photos to PC';
-      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Transfer • Saves to PC Desktop/from-phone';
+      const dropzoneEl = document.getElementById('dropzone');
+
+      if (dropzoneEl) dropzoneEl.classList.remove('waiting-for-phone');
+
+      if (btnFiles) {
+        btnFiles.disabled = false;
+        btnFiles.style.opacity = '1';
+        btnFiles.style.cursor = 'pointer';
+        btnFiles.innerText = 'Send Files to ' + pcHostName;
+      }
+      if (btnFolder) {
+        btnFolder.disabled = false;
+        btnFolder.style.opacity = '1';
+        btnFolder.style.cursor = 'pointer';
+        btnFolder.innerText = 'Send Photos / Folder to ' + pcHostName;
+      }
+      if (dzTitle) dzTitle.innerText = 'Send files or photos to ' + pcHostName;
+      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Transfer • Saves to Desktop/from-phone on ' + pcHostName;
 
       if (phoneStorage && phoneStorage.total_bytes > 0) {
         diskText.innerText = 'Phone: ' + phoneStorage.free_str + ' free | PC: ' + (data.pc_disk ? data.pc_disk.free_str + ' free' : '');
@@ -616,7 +674,7 @@ function syncIncomingServerTransfers(transfers) {
     if (isCompleted) {
       if (!isLocal) {
         document.getElementById('summaryCount').innerText = `${sender} sent: ${filename}`;
-        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone ⬇</button>`;
+        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone</button>`;
       } else {
         document.getElementById('summaryCount').innerText = `Received from ${sender}: ${filename}`;
         document.getElementById('summarySpeed').innerText = 'Completed';
@@ -641,7 +699,7 @@ function syncIncomingServerTransfers(transfers) {
         const infoEl = document.getElementById(`server-${r.id}-info`);
         if (infoEl) {
           if (isCompleted && !isLocal) {
-            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone ⬇</button>`;
+            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone</button>`;
           } else {
             infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
           }
@@ -715,7 +773,7 @@ function syncIncomingBeams(beams) {
     const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
     const downloadUrl = `/api/download?path=${encodeURIComponent(b.path)}${tokenQuery}`;
     const isDir = b.is_dir;
-    const actionLabel = isDir ? 'Save ZIP ⬇' : 'Save to Phone ⬇';
+    const actionLabel = isDir ? 'Save ZIP' : 'Save to Phone';
     const fileDesc = isDir ? `Folder (${formatBytes(b.size)})` : formatBytes(b.size);
 
     return `
@@ -769,6 +827,8 @@ let currentOnboardSlide = 0;
 const totalOnboardSlides = 4;
 
 function openOnboarding(force = false) {
+  // Never show onboarding on mobile phone
+  if (!isLocalClient && !force) return;
   currentOnboardSlide = 0;
   updateOnboardSlideUI();
   const overlay = document.getElementById('onboardingOverlay');
@@ -802,7 +862,7 @@ function updateOnboardSlideUI() {
   }
   if (nextBtn) {
     if (currentOnboardSlide === totalOnboardSlides - 1) {
-      nextBtn.innerHTML = 'Get Started 🚀';
+      nextBtn.innerHTML = 'Get Started';
     } else {
       nextBtn.innerHTML = 'Next &rarr;';
     }
@@ -961,6 +1021,21 @@ function hideIndexingStatus() {
   document.getElementById('indexingBanner').style.display = 'none';
 }
 
+function handleFileSelectClick(inputId) {
+  if (isLocalClient && (!currentConnectedPhoneName || !currentConnectedPhoneIp)) {
+    showToast('No phone connected. Scan the QR code above with your phone camera first.');
+    const qrCard = document.getElementById('qrConnectCard');
+    if (qrCard) {
+      qrCard.scrollIntoView({ behavior: 'smooth' });
+      qrCard.classList.add('pulse-highlight');
+      setTimeout(() => qrCard.classList.remove('pulse-highlight'), 1200);
+    }
+    return;
+  }
+  const el = document.getElementById(inputId);
+  if (el) el.click();
+}
+
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 const folderInput = document.getElementById('folderInput');
@@ -976,6 +1051,18 @@ const folderInput = document.getElementById('folderInput');
 dropzone.addEventListener('drop', async e => {
   e.preventDefault();
   dropzone.classList.remove('dragover');
+
+  if (isLocalClient && (!currentConnectedPhoneName || !currentConnectedPhoneIp)) {
+    showToast('No phone connected. Scan the QR code above with your phone camera first.');
+    const qrCard = document.getElementById('qrConnectCard');
+    if (qrCard) {
+      qrCard.scrollIntoView({ behavior: 'smooth' });
+      qrCard.classList.add('pulse-highlight');
+      setTimeout(() => qrCard.classList.remove('pulse-highlight'), 1200);
+    }
+    return;
+  }
+
   showIndexingStatus("Analyzing dragged items...");
   const items = e.dataTransfer.items;
   if (items && items.length) {
@@ -993,6 +1080,11 @@ dropzone.addEventListener('drop', async e => {
 
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length) {
+    if (isLocalClient && (!currentConnectedPhoneName || !currentConnectedPhoneIp)) {
+      fileInput.value = '';
+      showToast('No phone connected. Scan the QR code above with your phone camera first.');
+      return;
+    }
     showIndexingStatus(`Loading ${fileInput.files.length} selected files...`);
     setTimeout(() => {
       const list = Array.from(fileInput.files).map(f => ({ file: f, relPath: f.name }));
@@ -1005,6 +1097,11 @@ fileInput.addEventListener('change', () => {
 
 folderInput.addEventListener('change', () => {
   if (folderInput.files.length) {
+    if (isLocalClient && (!currentConnectedPhoneName || !currentConnectedPhoneIp)) {
+      folderInput.value = '';
+      showToast('No phone connected. Scan the QR code above with your phone camera first.');
+      return;
+    }
     showIndexingStatus(`Reading folder tree (${folderInput.files.length} items)...`);
     setTimeout(() => {
       const list = Array.from(folderInput.files).map(f => ({
@@ -1883,9 +1980,5 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
-  }
-
-  if (!localStorage.getItem('hotspot_onboarded')) {
-    setTimeout(() => openOnboarding(false), 500);
   }
 });

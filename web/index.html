@@ -80,8 +80,8 @@
       <p id="dropzoneSubtitle">Direct Wi-Fi 6 Transfer &bull; Instant Peer-to-Peer Beam</p>
       
       <div class="action-buttons">
-        <button type="button" class="btn-primary" id="btnSelectFiles" onclick="document.getElementById('fileInput').click()">Select Files</button>
-        <button type="button" class="btn-secondary" id="btnSelectFolder" onclick="document.getElementById('folderInput').click()">Select Folder</button>
+        <button type="button" class="btn-primary" id="btnSelectFiles" onclick="handleFileSelectClick('fileInput')">Select Files</button>
+        <button type="button" class="btn-secondary" id="btnSelectFolder" onclick="handleFileSelectClick('folderInput')">Select Folder</button>
       </div>
       <input type="file" id="fileInput" multiple>
       <input type="file" id="folderInput" webkitdirectory directory multiple>
@@ -244,15 +244,21 @@
       <p class="onboard-tagline">Your personal files, documents, and clipboard never touch third-party cloud servers, external trackers, or the internet.</p>
       <div class="privacy-features">
         <div class="pf-item">
-          <span class="pf-icon">🔓</span>
+          <span class="pf-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          </span>
           <div><b>No Login or Accounts:</b> Instant pairing with zero sign-ups or credentials.</div>
         </div>
         <div class="pf-item">
-          <span class="pf-icon">🛡️</span>
+          <span class="pf-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
           <div><b>Zero Data Retention:</b> Direct local network streaming with zero cloud storage.</div>
         </div>
         <div class="pf-item">
-          <span class="pf-icon">📜</span>
+          <span class="pf-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </span>
           <div><b>100% Free & Open Source:</b> Licensed under GPL-3.0 with complete code transparency.</div>
         </div>
       </div>
@@ -294,7 +300,9 @@
               <code>console.log("AirDrop for Linux!");</code>
             </div>
           </div>
-          <div class="clip-arrow">⇄</div>
+          <div class="clip-arrow">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+          </div>
           <div class="phone-clip-preview">
             <span>Mobile Clipboard Synced</span>
           </div>

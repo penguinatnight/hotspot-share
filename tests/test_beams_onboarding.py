@@ -113,7 +113,39 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn("function syncIncomingBeams(", js)
         self.assertIn("function openOnboarding(", js)
         self.assertIn("function finishOnboarding(", js)
+        self.assertIn("function handleFileSelectClick(", js)
         self.assertIn("localStorage.getItem('hotspot_onboarded')", js)
+
+    def test_no_emojis_in_onboarding_and_beams(self):
+        html_path = Path("web/index.html")
+        content = html_path.read_text(encoding="utf-8")
+        
+        # Onboarding section must be free of emoji glyphs
+        onboard_start = content.find('id="onboardingOverlay"')
+        self.assertNotEqual(onboard_start, -1)
+        onboard_chunk = content[onboard_start:onboard_start + 4500]
+        
+        for forbidden in ["🔓", "🛡️", "📜", "🚀", "⬇"]:
+            self.assertNotIn(forbidden, onboard_chunk, f"Forbidden emoji {forbidden} found in onboarding HTML")
+
+        js_path = Path("web/app.js")
+        js_chunk = js_path.read_text(encoding="utf-8")
+        self.assertNotIn("Get Started 🚀", js_chunk)
+        self.assertNotIn("Save to Phone ⬇", js_chunk)
+
+    def test_connection_guards_in_app(self):
+        js = Path("web/app.js").read_text(encoding="utf-8")
+        css = Path("web/style.css").read_text(encoding="utf-8")
+
+        # Must guard against sending to no one when no phone is connected
+        self.assertIn("No phone connected", js)
+        self.assertIn("waiting-for-phone", js)
+        self.assertIn("waiting-for-phone", css)
+        self.assertIn("pulse-highlight", js)
+        self.assertIn("pulse-highlight", css)
+
+        # Mobile must suppress onboarding
+        self.assertIn("if (!isLocalClient && !force) return;", js)
 
 if __name__ == "__main__":
     unittest.main()
