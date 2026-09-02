@@ -48,6 +48,7 @@ install: build
 	install -m 644 packaging/desktop/hotspot-share.desktop $(DESTDIR)$(DATADIR)/applications/hotspot-share.desktop
 	install -d $(DESTDIR)$(DATADIR)/metainfo
 	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(DESTDIR)$(DATADIR)/metainfo/org.yab.hotspotshare.metainfo.xml
+	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(DESTDIR)$(DATADIR)/metainfo/hotspot-share.metainfo.xml
 	# Web Assets
 	install -d $(DESTDIR)$(DATADIR)/hotspot-share/web
 	cp -r web/* $(DESTDIR)$(DATADIR)/hotspot-share/web/
@@ -78,6 +79,7 @@ install-user: build
 	chmod 755 $(HOME)/.local/bin/hotspot-share
 	install -m 644 packaging/desktop/hotspot-share.desktop $(HOME)/.local/share/applications/hotspot-share.desktop
 	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(HOME)/.local/share/metainfo/org.yab.hotspotshare.metainfo.xml
+	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(HOME)/.local/share/metainfo/hotspot-share.metainfo.xml
 	cp -r web/* $(HOME)/.local/share/hotspot-share/web/
 	install -d $(HOME)/.local/share/icons/hicolor/scalable/apps
 	install -m 644 assets/icons/hotspot-share.svg $(HOME)/.local/share/icons/hicolor/scalable/apps/hotspot-share.svg
@@ -90,6 +92,7 @@ install-user: build
 	cp extensions/nautilus/hotspot_share_nautilus.py $(HOME)/.local/share/nautilus-python/extensions/ 2>/dev/null || true
 	update-desktop-database $(HOME)/.local/share/applications 2>/dev/null || true
 	gtk-update-icon-cache -f -t $(HOME)/.local/share/icons/hicolor 2>/dev/null || true
+	appstreamcli refresh-cache 2>/dev/null || true
 	@echo "User installation complete! You can now run 'hotspot-share-gui' or launch from your app menu."
 
 uninstall:
