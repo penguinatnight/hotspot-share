@@ -2,11 +2,22 @@ name: hotspot-share
 title: Hotspot Share
 base: core22
 version: '2.0.0'
-summary: High-speed local Wi-Fi file sharing & multimodal clipboard sync
+summary: Ultra-fast local Wi-Fi file transfer & clipboard sync (AirDrop for Linux)
 description: |
-  Hotspot Share is a high-performance, local Wi-Fi file transfer and clipboard 
-  synchronization tool. It allows rapid sharing between Linux PCs and mobile 
-  phones without requiring cloud servers, account logins, or phone app installation.
+  Hotspot Share is the ultimate local Wi-Fi file sharing and bi-directional clipboard synchronization suite for Linux, Android, and iOS. Like AirDrop and Quick Share, it lets you seamlessly beam files, 4K videos, folders, code, text, and images between your Linux PC and any smartphone over high-speed local Wi-Fi — with zero cloud servers, zero account sign-ups, and zero phone apps to install.
+
+  Simply connect your phone to your PC's Wi-Fi hotspot (or local network) and scan the pairing QR code with your mobile camera. The responsive web app opens instantly in your mobile browser, ready for direct, gigabit-grade peer-to-peer transfers.
+
+  Key Features & Capabilities:
+  • Blazing Wi-Fi 6 Speeds: Transfer gigabytes of data in seconds (up to 80+ MB/s) with pure local peer-to-peer streaming and zero cloud throttling.
+  • Zero Phone App Required: Works out-of-the-box in Safari, Chrome, Firefox, Edge, and any modern mobile browser.
+  • Bi-Directional Multimodal Clipboard: Copy text, URLs, or photos on your Linux desktop and paste them instantly on your phone — or send from your phone directly into your PC's system clipboard (Ctrl+V ready).
+  • Full Directory & Folder Transfers: Send nested folder trees with automatic on-the-fly packaging and smart conflict resolution.
+  • Resumable Chunked Transfers: Robust 8MB chunk streaming engine with RFC 206 range resume support. Large video and backup uploads never fail on network drops.
+  • In-Browser Media Previews: Stream and preview high-res videos, audio recordings, and photos directly in the file explorer before downloading.
+  • One-Click ZIP Generation: Download entire shared directories as structured ZIP archives on the fly.
+  • Private, Secure & Local-First: 100% offline-capable. Encrypted PIN pairing prevents unauthorized access. Your data never touches third-party servers or the Internet.
+  • Native Desktop Integration: Built with a lightweight WebKitGTK interface, GNOME desktop integration, and Nautilus file manager extensions.
 
 icon: snap/gui/icon.png
 license: GPL-3.0-or-later

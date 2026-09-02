@@ -133,6 +133,18 @@ class TransferTracker:
                 tx['error'] = error_msg
                 tx['speed_str'] = 'Failed'
 
+    resolved_paths = {}
+
+    @classmethod
+    def set_resolved_path(cls, transfer_id, path):
+        with cls._lock:
+            cls.resolved_paths[transfer_id] = path
+
+    @classmethod
+    def get_resolved_path(cls, transfer_id):
+        with cls._lock:
+            return cls.resolved_paths.get(transfer_id)
+
     @classmethod
     def get_transfers_state(cls):
         with cls._lock:
@@ -143,6 +155,7 @@ class TransferTracker:
                     if now - tx.get('last_update', now) > 45:
                         cls.transfers.pop(tx_id, None)
                         cls.cancelled_transfers.pop(tx_id, None)
+                        cls.resolved_paths.pop(tx_id, None)
 
             # Also prune cancelled transfers older than 5 minutes
             for cid, ctime in list(cls.cancelled_transfers.items()):

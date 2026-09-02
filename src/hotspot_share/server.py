@@ -36,6 +36,7 @@ from .hotspot import (
     is_nmcli_available, get_active_hotspot, start_hotspot, stop_hotspot
 )
 from .auth import AuthManager
+from .conflict import resolve_filename_conflict
 
 def get_local_ips():
     ips = []
@@ -263,16 +264,35 @@ class HotspotHandler(BaseHTTPRequestHandler):
             if manifest_path.exists():
                 data = manifest_path.read_bytes()
                 self.send_response(200)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Type', 'application/manifest+json; charset=utf-8')
                 self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
                 return
 
-        elif path in ('/icon.png', '/favicon.ico', '/apple-touch-icon.png'):
-            icon_png = get_icon_file(512, "png")
-            if icon_png and icon_png.is_file():
-                data = icon_png.read_bytes()
+        elif path == '/sw.js':
+            sw_path = web_dir / "sw.js"
+            if sw_path.exists():
+                data = sw_path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+                self.send_header('Service-Worker-Allowed', '/')
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+        elif path in ('/icon.png', '/icon-192.png', '/icon-512.png', '/favicon.ico', '/apple-touch-icon.png'):
+            target_icon = web_dir / path.lstrip('/')
+            data = None
+            if target_icon.exists() and target_icon.is_file():
+                data = target_icon.read_bytes()
+            else:
+                icon_png = get_icon_file(512, "png")
+                if icon_png and icon_png.is_file():
+                    data = icon_png.read_bytes()
+            if data is not None:
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/png')
                 self.send_header('Content-Length', str(len(data)))
@@ -295,7 +315,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         # Status endpoint is public so mobile UI can check if PIN is required
         elif path == '/api/status':
-            server_url = f"http://{self.primary_ip}:{self.server_port}"
+            proto = "https" if getattr(self, 'is_ssl', False) else "http"
+            server_url = f"{proto}://{self.primary_ip}:{self.server_port}"
+            local_domain = f"{proto}://{socket.gethostname()}.local:{self.server_port}"
             phones = DeviceTracker.get_connected_phones()
             disk = get_disk_stats(self.shared_dir)
             qr_svg = get_svg_qr(server_url)
@@ -313,6 +335,8 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 'transfers': transfers,
                 'cancel_all_time': TransferTracker.last_cancel_all_time,
                 'server_url': server_url,
+                'local_domain': local_domain,
+                'is_ssl': getattr(self, 'is_ssl', False),
                 'qr_svg': qr_svg,
                 'qr_matrix': qr_matrix,
                 'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
@@ -646,6 +670,18 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
             if target_path.is_dir():
                 target_path = target_path / os.path.basename(clean_rel)
+
+            conflict_mode = query.get('conflict', [self.headers.get('X-Conflict-Mode', 'rename')])[0]
+            if offset == 0:
+                if conflict_mode == 'skip' and target_path.exists() and total_file_size > 0 and target_path.stat().st_size == total_file_size:
+                    self.send_json({'status': 'skipped', 'message': 'File already exists with matching size', 'path': str(target_path.relative_to(base))})
+                    return
+                target_path = resolve_filename_conflict(target_path, strategy=conflict_mode)
+                TransferTracker.set_resolved_path(transfer_id, target_path)
+            else:
+                cached = TransferTracker.get_resolved_path(transfer_id)
+                if cached:
+                    target_path = cached
 
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
