@@ -1,8 +1,8 @@
-const CACHE_NAME = 'hotspot-share-v2.0.2';
+const CACHE_NAME = 'hotspot-share-v2.0.3';
 const STATIC_ASSETS = [
   '/',
-  '/style.css?v=2.0.2',
-  '/app.js?v=2.0.2',
+  '/style.css?v=2.0.3',
+  '/app.js?v=2.0.3',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
