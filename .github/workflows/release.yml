@@ -12,6 +12,8 @@ permissions:
 jobs:
   build-and-publish:
     runs-on: ubuntu-22.04
+    env:
+      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,7 +47,7 @@ jobs:
           cp *.snap dist/ 2>/dev/null || true
 
       - name: Publish to Canonical Snap Store
-        if: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
