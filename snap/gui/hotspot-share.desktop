@@ -4,7 +4,7 @@ Type=Application
 Name=Hotspot Share
 GenericName=File Transfer & Clipboard Sync
 Comment=High-speed local Wi-Fi file sharing & clipboard synchronization between Phone and PC
-Exec=hotspot-share-gui %F
+Exec=hotspot-share %F
 Icon=hotspot-share
 Terminal=false
 Categories=Network;FileTransfer;
@@ -20,4 +20,4 @@ Exec=xdg-open %U
 
 [Desktop Action HeadlessMode]
 Name=Start Headless Terminal Server
-Exec=hotspot-share
+Exec=hotspot-share.cli
