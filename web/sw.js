@@ -1,18 +1,19 @@
-const CACHE_NAME = 'hotspot-share-v2.0';
+const CACHE_NAME = 'hotspot-share-v2.0.2';
 const STATIC_ASSETS = [
   '/',
-  '/style.css',
-  '/app.js',
+  '/style.css?v=2.0.2',
+  '/app.js?v=2.0.2',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+    }).catch(() => {})
   );
 });
 
@@ -41,35 +42,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for html/root to always get latest status, fallback to cache
-  if (url.pathname === '/' || url.pathname === '/index.html') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Cache-first with network fallback for static css, js, icons
+  // Network-First with Cache Fallback for all UI assets
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
