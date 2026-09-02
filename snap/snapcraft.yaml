@@ -31,15 +31,6 @@ confinement: strict
 
 apps:
   hotspot-share:
-    command: bin/hotspot-share
-    plugs:
-      - network
-      - network-bind
-      - home
-      - removable-media
-      - network-manager
-
-  hotspot-share-gui:
     command: bin/hotspot-share-gui
     extensions: [gnome]
     desktop: snap/gui/hotspot-share.desktop
@@ -55,12 +46,37 @@ apps:
       - unity7
       - network-manager
 
+  cli:
+    command: bin/hotspot-share
+    plugs:
+      - network
+      - network-bind
+      - home
+      - removable-media
+      - network-manager
+
 parts:
+  gui:
+    plugin: nil
+    source: gui
+    build-packages:
+      - gcc
+      - pkg-config
+      - libgtk-3-dev
+      - libwebkit2gtk-4.1-dev
+    stage-packages:
+      - libwebkit2gtk-4.1-0
+      - libsoup-3.0-0
+      - libjavascriptcoregtk-4.1-0
+    override-build: |
+      gcc -O2 gui.c -o hotspot-share-gui $(pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.1)
+      install -d $SNAPCRAFT_PART_INSTALL/bin
+      install -m 755 hotspot-share-gui $SNAPCRAFT_PART_INSTALL/bin/hotspot-share-gui
+
   desktop-assets:
     plugin: dump
     source: .
     organize:
-      gui/hotspot-share-gui: bin/hotspot-share-gui
       packaging/desktop/hotspot-share.desktop: usr/share/applications/hotspot-share.desktop
       packaging/appstream/org.yab.hotspotshare.metainfo.xml: usr/share/metainfo/org.yab.hotspotshare.metainfo.xml
       assets/icons/hicolor: usr/share/icons/hicolor
