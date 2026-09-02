@@ -1,3 +1,11 @@
+hotspot-share (2.0.4-1) unstable; urgency=medium
+
+  * Resolved Mesa DRI/EGL driver mismatch inside snap environment.
+  * Explicitly configured LD_LIBRARY_PATH prioritizing gnome-platform graphics libraries.
+  * Set WEBKIT_DISABLE_COMPOSITING_MODE and disabled WebGL hardware acceleration in GUI wrapper.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:10:00 +0300
+
 hotspot-share (2.0.3-1) unstable; urgency=medium
 
   * Resolved Snap package duplicate application entry in GNOME Shell / Ubuntu App Center.

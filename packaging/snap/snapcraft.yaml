@@ -1,7 +1,7 @@
 name: hotspot-share
 title: Hotspot Share
 base: core22
-version: '2.0.3'
+version: '2.0.4'
 summary: Ultra-fast local Wi-Fi file transfer & clipboard sync (AirDrop for Linux)
 description: |
   Hotspot Share is the ultimate local Wi-Fi file sharing and bi-directional clipboard synchronization suite for Linux, Android, and iOS. Like AirDrop and Quick Share, it lets you seamlessly beam files, 4K videos, folders, code, text, and images between your Linux PC and any smartphone over high-speed local Wi-Fi — with zero cloud servers, zero account sign-ups, and zero phone apps to install.
@@ -34,6 +34,9 @@ apps:
     command: bin/hotspot-share-gui
     extensions: [gnome]
     desktop: snap/gui/hotspot-share.desktop
+    environment:
+      LD_LIBRARY_PATH: "$SNAP/gnome-platform/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/gnome-platform/usr/lib:$LD_LIBRARY_PATH"
+      WEBKIT_DISABLE_COMPOSITING_MODE: "1"
     plugs:
       - network
       - network-bind
@@ -64,10 +67,6 @@ parts:
       - pkg-config
       - libgtk-3-dev
       - libwebkit2gtk-4.1-dev
-    stage-packages:
-      - libwebkit2gtk-4.1-0
-      - libsoup-3.0-0
-      - libjavascriptcoregtk-4.1-0
     override-build: |
       gcc -O2 gui.c -o hotspot-share-gui $(pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.1)
       install -d $SNAPCRAFT_PART_INSTALL/bin
