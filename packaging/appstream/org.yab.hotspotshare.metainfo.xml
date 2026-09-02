@@ -48,16 +48,24 @@
   <icon type="remote">https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/icons/hicolor/512x512/apps/hotspot-share.png</icon>
   <screenshots>
     <screenshot type="default">
-      <caption>Hotspot Share desktop user interface with active device dashboard and QR code</caption>
+      <caption>High-speed Wi-Fi 6 multi-file transfers, real-time speed indicators, and cancellable transfer queue</caption>
       <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot1.png</image>
     </screenshot>
     <screenshot>
-      <caption>Mobile web app showing file upload queue and real-time transfer speedometer</caption>
+      <caption>Mobile web app interface with upload progress, live speedometer, and responsive controls</caption>
       <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot2.png</image>
     </screenshot>
     <screenshot>
-      <caption>Bi-directional multimodal clipboard synchronization and file explorer</caption>
+      <caption>File Explorer with directory navigation, audio and video previews, and on-the-fly ZIP download</caption>
       <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Bi-directional multimodal clipboard synchronization for instant text, code, and image sharing</caption>
+      <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot4.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Instant QR code smartphone pairing and secure PIN authentication dashboard</caption>
+      <image>https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/screenshots/screenshot5.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>
