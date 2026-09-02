@@ -32,7 +32,7 @@
     <binary>hotspot-share-gui</binary>
   </provides>
   <categories>
-    <category>Utility</category>
+    <category>Network</category>
     <category>FileTransfer</category>
   </categories>
   <keywords>

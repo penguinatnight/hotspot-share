@@ -35,8 +35,6 @@ jobs:
       - name: Build Snap Package
         uses: canonical/action-snapcraft@v2
         id: snapcraft
-        with:
-          path: packaging/snap
 
       - name: Copy Snap Artifact
         run: |

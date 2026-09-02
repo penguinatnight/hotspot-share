@@ -13,6 +13,82 @@ let activeServerTransferId = null;
 let pendingClipImageFile = null;
 let pendingClipImageBase64 = null;
 
+let authToken = localStorage.getItem('hotspot_share_token') || '';
+const _urlParams = new URLSearchParams(window.location.search);
+if (_urlParams.get('token')) {
+  authToken = _urlParams.get('token');
+  localStorage.setItem('hotspot_share_token', authToken);
+}
+
+function authHeaders(extraHeaders = {}) {
+  const headers = { ...extraHeaders };
+  if (authToken) {
+    headers['Authorization'] = 'Bearer ' + authToken;
+  }
+  return headers;
+}
+
+let pinModalShown = false;
+
+function showPinAuthModal(msg = '') {
+  if (pinModalShown) return;
+  pinModalShown = true;
+
+  const html = `
+    <h3 style="margin-bottom:12px;font-size:18px;">PIN Verification</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">
+      This Hotspot Share server requires pairing. Enter the 4-digit PIN shown on the PC screen:
+    </p>
+    ${msg ? `<p style="color:#ef4444;font-size:13px;margin-bottom:12px;">${escapeHtml(msg)}</p>` : ''}
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;">
+      <input type="text" id="pinAuthInput" maxlength="6" placeholder="PIN" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
+        style="width:140px;font-size:24px;text-align:center;letter-spacing:4px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);"
+        onkeydown="if(event.key==='Enter') submitPinAuth()">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn-primary" onclick="submitPinAuth()">Pair & Connect</button>
+    </div>
+  `;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modal').classList.add('active');
+  setTimeout(() => {
+    const inp = document.getElementById('pinAuthInput');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+async function submitPinAuth() {
+  const inp = document.getElementById('pinAuthInput');
+  const pin = inp ? inp.value.trim() : '';
+  if (!pin) return;
+
+  try {
+    const res = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok' && data.token) {
+      authToken = data.token;
+      localStorage.setItem('hotspot_share_token', authToken);
+      pinModalShown = false;
+      document.getElementById('modal').classList.remove('active');
+      showToast('Paired successfully!');
+      sendHeartbeatAndPollStatus();
+      loadFiles();
+      loadClip();
+    } else {
+      pinModalShown = false;
+      showPinAuthModal(data.message || 'Invalid PIN code. Please try again.');
+    }
+  } catch (e) {
+    pinModalShown = false;
+    showPinAuthModal('Connection error: ' + e.message);
+  }
+}
+
+
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -252,7 +328,7 @@ async function saveDeviceConfig() {
   try {
     await fetch('/api/rename_device', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         ip: isLocalClient ? currentConnectedPhoneIp : '',
         name: name
@@ -286,9 +362,9 @@ async function sendHeartbeatAndPollStatus() {
 
     const phoneStorage = (!isLocalClient) ? await getPhoneStorageInfo() : null;
 
-    await fetch('/api/heartbeat', {
+    const hbRes = await fetch('/api/heartbeat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         ua: navigator.userAgent,
         model: modelToSend,
@@ -296,9 +372,19 @@ async function sendHeartbeatAndPollStatus() {
         storage: phoneStorage
       })
     });
+    if (hbRes.status === 401) {
+      showPinAuthModal();
+      return;
+    }
 
-    const res = await fetch('/api/status?_t=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('/api/status?_t=' + Date.now(), { 
+      cache: 'no-store',
+      headers: authHeaders()
+    });
     const data = await res.json();
+    if (data.auth_required && !authToken) {
+      showPinAuthModal();
+    }
     
     isLocalClient = data.is_local_client;
     pcHostName = data.pc_name || 'PC';
@@ -922,7 +1008,14 @@ async function startUploadTask(task) {
   // Query server to check if partial file exists for seamless resumption
   let startOffset = 0;
   try {
-    const res = await fetch(`/api/upload_status?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&_t=${Date.now()}`);
+    const res = await fetch(`/api/upload_status?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&_t=${Date.now()}`, {
+      headers: authHeaders()
+    });
+    if (res.status === 401) {
+      activeUploads--;
+      showPinAuthModal();
+      return;
+    }
     if (res.ok) {
       const data = await res.json();
       if (data.offset && data.offset < task.file.size) {
@@ -1005,6 +1098,11 @@ function uploadTaskChunk(task, offset) {
       processQueue();
       return;
     }
+
+    if (xhr.status === 401) {
+      showPinAuthModal();
+      return;
+    }
     
     let resp = null;
     try { resp = JSON.parse(xhr.responseText); } catch(e) {}
@@ -1061,8 +1159,14 @@ function uploadTaskChunk(task, offset) {
   };
 
   const sliceBlob = offset > 0 ? task.file.slice(offset) : task.file;
-  const uploadUrl = `/api/upload?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&offset=${offset}&totalSize=${task.file.size}`;
+  let uploadUrl = `/api/upload?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&offset=${offset}&totalSize=${task.file.size}`;
+  if (authToken) {
+    uploadUrl += `&token=${encodeURIComponent(authToken)}`;
+  }
   xhr.open('POST', uploadUrl, true);
+  if (authToken) {
+    xhr.setRequestHeader('Authorization', 'Bearer ' + authToken);
+  }
   xhr.send(sliceBlob);
 }
 
@@ -1085,7 +1189,9 @@ function handleUploadAutoResume(task) {
       if (task.cancelled) return;
       let offset = 0;
       try {
-        const res = await fetch(`/api/upload_status?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&_t=${Date.now()}`);
+        const res = await fetch(`/api/upload_status?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&_t=${Date.now()}`, {
+          headers: authHeaders()
+        });
         if (res.ok) {
           const data = await res.json();
           offset = data.offset || 0;
@@ -1134,8 +1240,13 @@ async function loadFiles(path = currentPath) {
   container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">Loading files...</p>';
   try {
     const res = await fetch(`/api/files?dir=${encodeURIComponent(currentPath)}&_t=${Date.now()}`, {
-      cache: 'no-store'
+      cache: 'no-store',
+      headers: authHeaders()
     });
+    if (res.status === 401) {
+      showPinAuthModal();
+      return;
+    }
     allItems = await res.json();
     renderFiles(allItems);
   } catch (err) {
@@ -1181,6 +1292,7 @@ function renderFiles(items) {
   });
 
   container.innerHTML = items.map(item => {
+    const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
     if (item.is_dir) {
       return `
         <div class="file-item is-folder">
@@ -1193,7 +1305,7 @@ function renderFiles(items) {
           </div>
           <div class="file-actions">
             <button class="action-btn" onclick="loadFiles('${escapeHtml(item.path)}')">Open</button>
-            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}" download="${escapeHtml(item.name)}.zip">ZIP</a>
+            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}.zip">ZIP</a>
             <button class="action-btn btn-del" onclick="deleteItem('${encodeURIComponent(item.path)}', true)">Delete</button>
           </div>
         </div>
@@ -1210,7 +1322,7 @@ function renderFiles(items) {
           </div>
           <div class="file-actions">
             ${canPreview(item.name) ? `<button class="action-btn" onclick="previewFile('${encodeURIComponent(item.path)}')">Preview</button>` : ''}
-            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}" download="${escapeHtml(item.name)}">Download</a>
+            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}">Download</a>
             <button class="action-btn btn-del" onclick="deleteItem('${encodeURIComponent(item.path)}', false)">Delete</button>
           </div>
         </div>
@@ -1241,7 +1353,8 @@ function canPreview(name) {
 function previewFile(encodedPath) {
   const name = decodeURIComponent(encodedPath).split('/').pop();
   const ext = name.split('.').pop().toLowerCase();
-  const url = `/api/download?path=${encodedPath}`;
+  const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
+  const url = `/api/download?path=${encodedPath}${tokenQuery}`;
   const body = document.getElementById('modalBody');
 
   if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
@@ -1254,7 +1367,7 @@ function previewFile(encodedPath) {
     body.innerHTML = `<iframe src="${url}" style="width:80vw;height:70vh;border:none;"></iframe>`;
   } else {
     body.innerHTML = `<p style="padding:10px;color:var(--text-secondary);">Loading preview...</p>`;
-    fetch(url).then(r => r.text()).then(txt => {
+    fetch(url, { headers: authHeaders() }).then(r => r.text()).then(txt => {
       body.innerHTML = `<div class="modal-text">${escapeHtml(txt.slice(0, 50000))}</div>`;
     });
   }
@@ -1262,6 +1375,7 @@ function previewFile(encodedPath) {
 }
 
 function closeModal(e) {
+  if (pinModalShown) return;
   if (e && e.target !== e.currentTarget && e.target !== document.querySelector('.modal-close')) return;
   document.getElementById('modal').classList.remove('active');
   const video = document.querySelector('#modalBody video');
@@ -1273,7 +1387,10 @@ function closeModal(e) {
 async function promptNewFolder() {
   const name = prompt('Folder name:');
   if (name && name.trim()) {
-    await fetch(`/api/mkdir?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(name.trim())}`, { method: 'POST' });
+    await fetch(`/api/mkdir?dir=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(name.trim())}`, { 
+      method: 'POST',
+      headers: authHeaders()
+    });
     showToast('Folder created');
     loadFiles();
   }
@@ -1282,7 +1399,10 @@ async function promptNewFolder() {
 async function deleteItem(encodedPath, isDir) {
   const name = decodeURIComponent(encodedPath).split('/').pop();
   if (confirm(`Delete ${isDir ? 'folder' : 'file'} "${name}"?`)) {
-    await fetch(`/api/delete?path=${encodedPath}`, { method: 'POST' });
+    await fetch(`/api/delete?path=${encodedPath}`, { 
+      method: 'POST',
+      headers: authHeaders()
+    });
     showToast('Deleted');
     loadFiles();
   }
@@ -1292,7 +1412,10 @@ async function confirmClearSharedFolder() {
   if (confirm('Delete all files and folders in this directory?')) {
     for (const item of allItems) {
       try {
-        await fetch(`/api/delete?path=${encodeURIComponent(item.path)}`, { method: 'POST' });
+        await fetch(`/api/delete?path=${encodeURIComponent(item.path)}`, { 
+          method: 'POST',
+          headers: authHeaders()
+        });
       } catch (e) {}
     }
     showToast('Cleared directory');
@@ -1306,7 +1429,14 @@ async function confirmClearSharedFolder() {
 
 async function loadClip(showFeedback = false) {
   try {
-    const res = await fetch('/api/clipboard?_t=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('/api/clipboard?_t=' + Date.now(), { 
+      cache: 'no-store',
+      headers: authHeaders()
+    });
+    if (res.status === 401) {
+      showPinAuthModal();
+      return;
+    }
     const data = await res.json();
     
     const pcImgCard = document.getElementById('pcImageCard');
@@ -1383,7 +1513,7 @@ async function sendSelectedImageToPc() {
   try {
     const res = await fetch('/api/clipboard', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         type: 'image',
         mime: pendingClipImageFile.type || 'image/png',
@@ -1406,7 +1536,7 @@ async function saveClipText() {
   try {
     const res = await fetch('/api/clipboard', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ type: 'text', text: text })
     });
     if (res.ok) {

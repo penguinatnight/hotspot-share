@@ -13,6 +13,8 @@ import base64
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
+import threading
+import binascii
 
 from .config import (
     get_web_dir, get_icon_file, get_default_share_dir,
@@ -91,6 +93,19 @@ class Stats:
     total_downloads = 0
     total_uploaded_bytes = 0
     total_downloaded_bytes = 0
+    _lock = threading.Lock()
+
+    @classmethod
+    def record_upload(cls, size_bytes):
+        with cls._lock:
+            cls.total_uploads += 1
+            cls.total_uploaded_bytes += size_bytes
+
+    @classmethod
+    def record_download(cls, size_bytes):
+        with cls._lock:
+            cls.total_downloads += 1
+            cls.total_downloaded_bytes += size_bytes
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -137,19 +152,23 @@ class HotspotHandler(BaseHTTPRequestHandler):
             self.close_connection = True
 
     def resolve_safe_path(self, rel_path):
-        clean_rel = os.path.normpath(urllib.parse.unquote(rel_path or '')).lstrip('/')
-        if clean_rel in ('.', ''):
-            return self.shared_dir
-        target = (self.shared_dir / clean_rel).resolve()
-        if str(target).startswith(str(self.shared_dir.resolve())):
-            return target
+        try:
+            clean_rel = os.path.normpath(urllib.parse.unquote(rel_path or '')).lstrip('/')
+            base = self.shared_dir.resolve()
+            if clean_rel in ('.', ''):
+                return base
+            target = (self.shared_dir / clean_rel).resolve()
+            if target == base or target.is_relative_to(base):
+                return target
+        except Exception:
+            pass
         return None
 
     def is_client_local(self):
         client_ip = self.client_address[0]
         return is_local_ip(client_ip) or client_ip == self.primary_ip
 
-    def check_auth(self):
+    def check_auth(self, query=None):
         if not AuthManager.auth_enabled:
             return True
         if self.is_client_local():
@@ -158,8 +177,31 @@ class HotspotHandler(BaseHTTPRequestHandler):
         token = ''
         if auth_header.startswith('Bearer '):
             token = auth_header[7:].strip()
+        elif query:
+            token = query.get('token', [''])[0].strip()
         client_ip = self.client_address[0]
         return AuthManager.is_authorized(client_ip, token)
+
+    def read_json_body(self, max_size=50*1024*1024):
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+        except (ValueError, TypeError):
+            return None, "Invalid Content-Length"
+        if length < 0:
+            return None, "Invalid Content-Length"
+        if length > max_size:
+            return None, "Payload too large"
+        if length == 0:
+            return {}, None
+        try:
+            raw = self.rfile.read(length)
+            return json.loads(raw.decode('utf-8')), None
+        except UnicodeDecodeError:
+            return None, "Encoding error: expected UTF-8"
+        except json.JSONDecodeError as e:
+            return None, f"Malformed JSON: {e}"
+        except Exception as e:
+            return None, str(e)
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -279,7 +321,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         # Authenticated endpoints check
-        if not self.check_auth():
+        if not self.check_auth(query):
             self.send_json({'status': 'unauthorized', 'error': 'PIN authentication required'}, status=401)
             return
 
@@ -293,26 +335,29 @@ class HotspotHandler(BaseHTTPRequestHandler):
             items = []
             for p in sorted(target_dir.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
                 if not p.name.startswith('.'):
-                    st = p.stat()
-                    mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))
-                    rel_to_root = str(p.relative_to(self.shared_dir))
-                    if p.is_dir():
-                        item_count = sum(1 for c in p.iterdir() if not c.name.startswith('.'))
-                        items.append({
-                            'name': p.name,
-                            'path': rel_to_root,
-                            'is_dir': True,
-                            'item_count': item_count,
-                            'mtime': mtime_str
-                        })
-                    else:
-                        items.append({
-                            'name': p.name,
-                            'path': rel_to_root,
-                            'is_dir': False,
-                            'size': st.st_size,
-                            'mtime': mtime_str
-                        })
+                    try:
+                        st = p.stat()
+                        mtime_str = time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))
+                        rel_to_root = str(p.relative_to(self.shared_dir.resolve()))
+                        if p.is_dir():
+                            item_count = sum(1 for c in p.iterdir() if not c.name.startswith('.'))
+                            items.append({
+                                'name': p.name,
+                                'path': rel_to_root,
+                                'is_dir': True,
+                                'item_count': item_count,
+                                'mtime': mtime_str
+                            })
+                        else:
+                            items.append({
+                                'name': p.name,
+                                'path': rel_to_root,
+                                'is_dir': False,
+                                'size': st.st_size,
+                                'mtime': mtime_str
+                            })
+                    except (OSError, PermissionError):
+                        continue
             self.send_json(items)
             return
 
@@ -327,11 +372,15 @@ class HotspotHandler(BaseHTTPRequestHandler):
             else:
                 clean_rel = os.path.basename(urllib.parse.unquote(filename))
 
+            base = self.shared_dir.resolve()
             if target_dir:
                 clean_target_dir = os.path.normpath(urllib.parse.unquote(target_dir)).lstrip('/')
-                target_path = self.shared_dir / clean_target_dir / clean_rel
+                target_path = (base / clean_target_dir / clean_rel).resolve()
             else:
-                target_path = self.shared_dir / clean_rel
+                target_path = (base / clean_rel).resolve()
+
+            if not (target_path == base or target_path.is_relative_to(base)):
+                target_path = base / os.path.basename(clean_rel)
 
             offset = 0
             if target_path.exists() and not target_path.is_dir() and not TransferTracker.is_cancelled(transfer_id):
@@ -359,10 +408,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 temp_zip_path = Path(temp_zip.name)
                 try:
                     with zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        base_resolved = self.shared_dir.resolve()
                         for root, _, files in os.walk(target_path):
                             for file in files:
                                 if not file.startswith('.'):
                                     full_file_path = Path(root) / file
+                                    # Protect against symlinks escaping shared directory
+                                    if full_file_path.is_symlink():
+                                        res_link = full_file_path.resolve()
+                                        if not (res_link == base_resolved or res_link.is_relative_to(base_resolved)):
+                                            continue
                                     arcname = full_file_path.relative_to(target_path)
                                     zf.write(full_file_path, arcname)
                     temp_zip.close()
@@ -374,32 +429,29 @@ class HotspotHandler(BaseHTTPRequestHandler):
                     self.send_header('Content-Length', str(zip_size))
                     self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                     self.end_headers()
+                    self.wfile.flush()
 
                     start_t = time.time()
                     with open(temp_zip_path, 'rb', buffering=4*1024*1024) as f:
-                        if hasattr(self.connection, 'sendfile'):
-                            try:
-                                self.connection.sendfile(f)
-                            except Exception:
-                                f.seek(0)
-                                while True:
-                                    chunk = f.read(1024 * 1024)
-                                    if not chunk: break
-                                    self.wfile.write(chunk)
-                        else:
-                            while True:
-                                chunk = f.read(1024 * 1024)
-                                if not chunk: break
-                                self.wfile.write(chunk)
+                        while True:
+                            chunk = f.read(1024 * 1024)
+                            if not chunk: break
+                            self.wfile.write(chunk)
                     
                     elapsed = max(0.001, time.time() - start_t)
                     speed_mb = (zip_size / (1024 * 1024)) / elapsed
-                    Stats.total_downloads += 1
-                    Stats.total_downloaded_bytes += zip_size
+                    Stats.record_download(zip_size)
                     print(f" \033[90m{t_stamp}\033[0m  \033[36m[DOWNLOAD]  \033[0m {folder_name}.zip \033[90m({format_size(zip_size)})\033[0m \033[32m{speed_mb:.1f} MB/s\033[0m")
                 finally:
+                    try:
+                        temp_zip.close()
+                    except Exception:
+                        pass
                     if temp_zip_path.exists():
-                        temp_zip_path.unlink()
+                        try:
+                            temp_zip_path.unlink()
+                        except Exception:
+                            pass
                 return
 
             file_size = target_path.stat().st_size
@@ -425,6 +477,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_header('Accept-Ranges', 'bytes')
                 self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 self.end_headers()
+                self.wfile.flush()
 
                 with open(target_path, 'rb', buffering=4*1024*1024) as f:
                     f.seek(start)
@@ -441,28 +494,18 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_header('Accept-Ranges', 'bytes')
                 self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 self.end_headers()
+                self.wfile.flush()
 
                 start_t = time.time()
                 with open(target_path, 'rb', buffering=4*1024*1024) as f:
-                    if hasattr(self.connection, 'sendfile') and file_size > 0:
-                        try:
-                            self.connection.sendfile(f)
-                        except Exception:
-                            f.seek(0)
-                            while True:
-                                chunk = f.read(1024 * 1024)
-                                if not chunk: break
-                                self.wfile.write(chunk)
-                    else:
-                        while True:
-                            chunk = f.read(1024 * 1024)
-                            if not chunk: break
-                            self.wfile.write(chunk)
+                    while True:
+                        chunk = f.read(1024 * 1024)
+                        if not chunk: break
+                        self.wfile.write(chunk)
 
                 elapsed = max(0.001, time.time() - start_t)
                 speed_mb = (file_size / (1024 * 1024)) / elapsed
-                Stats.total_downloads += 1
-                Stats.total_downloaded_bytes += file_size
+                Stats.record_download(file_size)
                 print(f" \033[90m{t_stamp}\033[0m  \033[36m[DOWNLOAD]  \033[0m {target_path.name} \033[90m({format_size(file_size)})\033[0m \033[32m{speed_mb:.1f} MB/s\033[0m")
             return
 
@@ -481,25 +524,31 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         # Public auth verify endpoint
         if path == '/api/auth/verify':
-            length = int(self.headers.get('Content-Length', 0))
-            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
-            pin = data.get('pin', '')
+            data, err = self.read_json_body(max_size=4096)
+            if err:
+                self.send_json({'status': 'error', 'message': err}, status=400)
+                return
+            pin = (data.get('pin') or '').strip()
             client_ip = self.client_address[0]
-            ok, token = AuthManager.verify_pin(pin, client_ip)
+            ok, token_or_reason = AuthManager.verify_pin(pin, client_ip)
             if ok:
-                self.send_json({'status': 'ok', 'token': token})
+                self.send_json({'status': 'ok', 'token': token_or_reason})
+            elif token_or_reason == 'rate-limited':
+                self.send_json({'status': 'error', 'message': 'Too many failed attempts. Locked out for 30s.'}, status=429)
             else:
                 self.send_json({'status': 'error', 'message': 'Invalid PIN code'}, status=403)
             return
 
         # Check authentication for remaining endpoints
-        if not self.check_auth():
+        if not self.check_auth(query):
             self.send_json({'status': 'unauthorized', 'error': 'PIN authentication required'}, status=401)
             return
 
         if path == '/api/heartbeat':
-            length = int(self.headers.get('Content-Length', 0))
-            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            data, err = self.read_json_body(max_size=65536)
+            if err:
+                self.send_json({'status': 'error', 'message': err}, status=400)
+                return
             ua = data.get('ua') or self.headers.get('User-Agent', '')
             model = data.get('model', '')
             nickname = data.get('nickname', '')
@@ -513,20 +562,26 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/rename_device':
-            length = int(self.headers.get('Content-Length', 0))
-            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
-            target_ip = data.get('ip') or self.client_address[0]
-            new_name = data.get('name', '').strip()
+            data, err = self.read_json_body(max_size=4096)
+            if err:
+                self.send_json({'status': 'error', 'message': err}, status=400)
+                return
+            if self.is_client_local():
+                target_ip = data.get('ip') or self.client_address[0]
+            else:
+                target_ip = self.client_address[0]
+            new_name = str(data.get('name', '')).strip()
             if new_name:
                 save_device_name(target_ip, new_name)
-                if target_ip in DeviceTracker.active_sessions:
-                    DeviceTracker.active_sessions[target_ip]['device_name'] = new_name
+                with DeviceTracker._lock:
+                    if target_ip in DeviceTracker.active_sessions:
+                        DeviceTracker.active_sessions[target_ip]['device_name'] = new_name
             self.send_json({'status': 'ok'})
             return
 
         elif path == '/api/cancel_transfer':
-            length = int(self.headers.get('Content-Length', 0))
-            data = json.loads(self.rfile.read(length).decode('utf-8')) if length > 0 else {}
+            data, _ = self.read_json_body(max_size=4096)
+            data = data or {}
             tx_id = data.get('id') or query.get('id', [''])[0]
             if tx_id:
                 TransferTracker.cancel_transfer(tx_id)
@@ -556,31 +611,51 @@ class HotspotHandler(BaseHTTPRequestHandler):
             filename = query.get('name', ['uploaded_file'])[0]
             rel_path = query.get('relPath', [''])[0]
             target_dir = query.get('targetDir', [''])[0]
-            offset = int(query.get('offset', [self.headers.get('X-Upload-Offset', '0')])[0])
-            total_file_size = int(query.get('totalSize', [self.headers.get('X-Total-Size', '0')])[0])
+
+            try:
+                offset = int(query.get('offset', [self.headers.get('X-Upload-Offset', '0')])[0])
+                total_file_size = int(query.get('totalSize', [self.headers.get('X-Total-Size', '0')])[0])
+                if offset < 0 or total_file_size < 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                self.send_json({'status': 'error', 'message': 'Invalid offset or totalSize'}, status=400)
+                return
 
             if rel_path:
                 clean_rel = os.path.normpath(urllib.parse.unquote(rel_path)).lstrip('/')
             else:
                 clean_rel = os.path.basename(urllib.parse.unquote(filename))
 
+            if not clean_rel or clean_rel in ('.', '..'):
+                clean_rel = f"file_{int(time.time()*1000)}"
+
             if not transfer_id:
                 transfer_id = f"tx_{int(time.time()*1000)}_{abs(hash(clean_rel))%10000}"
 
+            base = self.shared_dir.resolve()
             if target_dir:
                 clean_target_dir = os.path.normpath(urllib.parse.unquote(target_dir)).lstrip('/')
-                target_path = self.shared_dir / clean_target_dir / clean_rel
+                target_path = (base / clean_target_dir / clean_rel).resolve()
             else:
-                target_path = self.shared_dir / clean_rel
+                target_path = (base / clean_rel).resolve()
 
-            if not str(target_path.resolve()).startswith(str(self.shared_dir.resolve())):
-                target_path = self.shared_dir / os.path.basename(clean_rel)
+            if not (target_path == base or target_path.is_relative_to(base)):
+                target_path = base / os.path.basename(clean_rel)
+
+            if target_path.is_dir():
+                target_path = target_path / os.path.basename(clean_rel)
 
             target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            content_length = int(self.headers.get('Content-Length', 0))
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                if content_length < 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                content_length = 0
+
             total_size = total_file_size or (offset + content_length)
-            display_name = str(target_path.relative_to(self.shared_dir))
+            display_name = str(target_path.relative_to(base))
             sender_name = DeviceTracker.active_sessions.get(client_ip, {}).get('device_name', "Phone")
 
             if TransferTracker.is_cancelled(transfer_id):
@@ -598,13 +673,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
             error_occurred = False
             error_message = ""
 
-            mode = 'ab' if (offset > 0 and target_path.exists()) else 'wb'
-
             try:
-                with open(target_path, mode, buffering=4*1024*1024) as out_f:
-                    if offset > 0 and mode != 'ab':
-                        out_f.seek(offset)
+                # Proper resume: open in r+b, seek to offset and truncate stale data
+                if offset > 0 and target_path.exists():
+                    out_f = open(target_path, 'r+b')
+                    out_f.seek(offset)
+                    out_f.truncate()
+                else:
+                    out_f = open(target_path, 'wb')
 
+                with out_f:
                     remaining = content_length
                     while remaining > 0:
                         if TransferTracker.is_cancelled(transfer_id):
@@ -633,7 +711,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
                 if cancelled or TransferTracker.is_cancelled(transfer_id):
                     if target_path.exists():
-                        target_path.unlink(missing_ok=True)
+                        try:
+                            target_path.unlink()
+                        except Exception:
+                            pass
                     TransferTracker.finish_transfer(transfer_id, success=False, error_msg="Cancelled", is_cancelled=True)
                     t_stamp = time.strftime('%H:%M:%S')
                     print(f" \033[90m{t_stamp}\033[0m  \033[33m[CANCEL]    \033[0m {display_name}")
@@ -655,7 +736,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 is_canc = TransferTracker.is_cancelled(transfer_id)
                 if is_canc and target_path.exists():
-                    target_path.unlink(missing_ok=True)
+                    try:
+                        target_path.unlink()
+                    except Exception:
+                        pass
                 TransferTracker.finish_transfer(transfer_id, success=False, error_msg="Client disconnected", is_cancelled=is_canc)
                 self.close_connection = True
                 t_stamp = time.strftime('%H:%M:%S')
@@ -667,7 +751,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 is_canc = TransferTracker.is_cancelled(transfer_id)
                 if is_canc and target_path.exists():
-                    target_path.unlink(missing_ok=True)
+                    try:
+                        target_path.unlink()
+                    except Exception:
+                        pass
                 TransferTracker.finish_transfer(transfer_id, success=False, error_msg=str(e), is_cancelled=is_canc)
                 self.close_connection = True
                 t_stamp = time.strftime('%H:%M:%S')
@@ -684,8 +771,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
             elapsed = max(0.001, time.time() - start_t)
             speed_mb = ((offset + written) / (1024 * 1024)) / elapsed
-            Stats.total_uploads += 1
-            Stats.total_uploaded_bytes += written
+            Stats.record_upload(written)
 
             t_stamp = time.strftime('%H:%M:%S')
             print(f" \033[90m{t_stamp}\033[0m  \033[32m[UPLOAD]    \033[0m {display_name} \033[90m({format_size(offset + written)})\033[0m \033[1;37m{speed_mb:.1f} MB/s\033[0m")
@@ -695,23 +781,29 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         elif path == '/api/mkdir':
             req_dir = query.get('dir', [''])[0]
-            new_folder_name = os.path.basename(urllib.parse.unquote(query.get('name', [''])[0]))
+            raw_name = urllib.parse.unquote(query.get('name', [''])[0]).strip()
+            new_folder_name = os.path.basename(raw_name)
             base_dir = self.resolve_safe_path(req_dir)
-            if base_dir and new_folder_name:
-                new_folder_path = base_dir / new_folder_name
-                new_folder_path.mkdir(parents=True, exist_ok=True)
-                print(f" \033[90m{t_stamp}\033[0m  \033[34m[MKDIR]     \033[0m {new_folder_path.relative_to(self.shared_dir)}")
-                self.send_json({'status': 'ok'})
-            else:
-                self.send_error(400, "Invalid directory name")
+            base = self.shared_dir.resolve()
+            if base_dir and new_folder_name and new_folder_name not in ('.', '..') and '/' not in raw_name and '\\' not in raw_name:
+                new_folder_path = (base_dir / new_folder_name).resolve()
+                if new_folder_path == base or new_folder_path.is_relative_to(base):
+                    new_folder_path.mkdir(parents=True, exist_ok=True)
+                    print(f" \033[90m{t_stamp}\033[0m  \033[34m[MKDIR]     \033[0m {new_folder_path.relative_to(base)}")
+                    self.send_json({'status': 'ok'})
+                    return
+            self.send_error(400, "Invalid directory name")
             return
 
         elif path == '/api/delete':
             req_path = query.get('path', [''])[0]
             target = self.resolve_safe_path(req_path)
-            if target and target.exists() and target != self.shared_dir:
-                display_name = str(target.relative_to(self.shared_dir))
-                if target.is_dir():
+            base = self.shared_dir.resolve()
+            if target and target.exists() and target != base:
+                display_name = str(target.relative_to(base))
+                if target.is_symlink():
+                    target.unlink()
+                elif target.is_dir():
                     shutil.rmtree(target)
                 else:
                     target.unlink()
@@ -722,22 +814,31 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/clipboard':
-            length = int(self.headers.get('Content-Length', 0))
-            data = json.loads(self.rfile.read(length).decode('utf-8'))
+            data, err = self.read_json_body(max_size=25*1024*1024)
+            if err:
+                self.send_json({'status': 'error', 'message': err}, status=400)
+                return
             
             data_type = data.get('type', 'text')
             if data_type == 'image':
                 raw_b64 = data.get('data', '')
                 if ',' in raw_b64:
                     raw_b64 = raw_b64.split(',', 1)[1]
-                img_bytes = base64.b64decode(raw_b64)
+                try:
+                    img_bytes = base64.b64decode(raw_b64)
+                except (binascii.Error, ValueError):
+                    self.send_json({'status': 'error', 'message': 'Invalid base64 image data'}, status=400)
+                    return
                 mime = data.get('mime', 'image/png')
                 success = set_system_clipboard_image(img_bytes, mime)
                 print(f" \033[90m{t_stamp}\033[0m  \033[33m[CLIPBOARD] \033[0m Synced image ({format_size(len(img_bytes))}) to PC (Ctrl+V ready)")
                 notify_clipboard_synced(f"Image received ({format_size(len(img_bytes))})")
                 self.send_json({'status': 'ok', 'clipboard_synced': success})
             else:
-                new_text = data.get('text', '')
+                new_text = str(data.get('text', ''))
+                if len(new_text) > 1024 * 1024:
+                    self.send_json({'status': 'error', 'message': 'Text payload too large (max 1MB)'}, status=400)
+                    return
                 success = set_system_clipboard_text(new_text)
                 preview = (new_text[:40] + "...") if len(new_text) > 40 else new_text
                 print(f" \033[90m{t_stamp}\033[0m  \033[33m[CLIPBOARD] \033[0m Synced text ({len(new_text)} chars) to PC (Ctrl+V ready)")

@@ -1,51 +1,106 @@
 import secrets
 import string
 import time
+import threading
 
 class AuthManager:
     auth_enabled = False
     pin_code = ""
     authorized_tokens = {}  # token -> {'ip': ip, 'created': timestamp}
-    authorized_ips = set()
+    authorized_ips = {}     # ip -> timestamp of authorization
+    failed_attempts = {}    # ip -> list of failure timestamps
+    _lock = threading.Lock()
+
+    TOKEN_TTL = 86400       # 24 hours
+    MAX_FAILURES = 5
+    FAIL_WINDOW = 60        # 1 minute window
+    LOCKOUT_TIME = 30       # 30 seconds lockout
 
     @classmethod
     def enable_pin_auth(cls, custom_pin: str = None):
-        cls.auth_enabled = True
-        if custom_pin and len(custom_pin) >= 4:
-            cls.pin_code = custom_pin
-        else:
-            cls.pin_code = "".join(secrets.choice(string.digits) for _ in range(4))
-        cls.authorized_tokens.clear()
-        cls.authorized_ips.clear()
-        return cls.pin_code
+        with cls._lock:
+            cls.auth_enabled = True
+            if custom_pin and len(custom_pin) >= 4:
+                cls.pin_code = custom_pin.strip()
+            else:
+                cls.pin_code = "".join(secrets.choice(string.digits) for _ in range(4))
+            cls.authorized_tokens.clear()
+            cls.authorized_ips.clear()
+            cls.failed_attempts.clear()
+            return cls.pin_code
 
     @classmethod
     def disable_pin_auth(cls):
-        cls.auth_enabled = False
-        cls.pin_code = ""
-        cls.authorized_tokens.clear()
-        cls.authorized_ips.clear()
+        with cls._lock:
+            cls.auth_enabled = False
+            cls.pin_code = ""
+            cls.authorized_tokens.clear()
+            cls.authorized_ips.clear()
+            cls.failed_attempts.clear()
+
+    @classmethod
+    def is_locked_out(cls, client_ip: str) -> bool:
+        # Assumes caller holds cls._lock or called within locked context
+        now = time.time()
+        attempts = cls.failed_attempts.get(client_ip, [])
+        # Filter attempts within window
+        valid_attempts = [t for t in attempts if now - t < cls.FAIL_WINDOW]
+        cls.failed_attempts[client_ip] = valid_attempts
+        if len(valid_attempts) >= cls.MAX_FAILURES:
+            # Check if within lockout period since last failure
+            if now - valid_attempts[-1] < cls.LOCKOUT_TIME:
+                return True
+        return False
 
     @classmethod
     def verify_pin(cls, submitted_pin: str, client_ip: str) -> tuple:
-        if not cls.auth_enabled:
-            return True, "no-auth-required"
+        with cls._lock:
+            if not cls.auth_enabled:
+                return True, "no-auth-required"
 
-        if submitted_pin and submitted_pin.strip() == cls.pin_code:
-            token = secrets.token_hex(16)
-            cls.authorized_tokens[token] = {'ip': client_ip, 'created': time.time()}
-            cls.authorized_ips.add(client_ip)
-            return True, token
-        return False, ""
+            now = time.time()
+
+            if cls.is_locked_out(client_ip):
+                return False, "rate-limited"
+
+            if submitted_pin and secrets.compare_digest(submitted_pin.strip(), cls.pin_code):
+                token = secrets.token_hex(16)
+                cls.authorized_tokens[token] = {'ip': client_ip, 'created': now}
+                cls.authorized_ips[client_ip] = now
+                cls.failed_attempts.pop(client_ip, None)
+                return True, token
+
+            # Record failed attempt
+            cls.failed_attempts.setdefault(client_ip, []).append(now)
+            return False, ""
 
     @classmethod
     def is_authorized(cls, client_ip: str, token: str = "") -> bool:
-        if not cls.auth_enabled:
-            return True
-        if client_ip in ('127.0.0.1', '::1', 'localhost'):
-            return True
-        if client_ip in cls.authorized_ips:
-            return True
-        if token and token in cls.authorized_tokens:
-            return True
-        return False
+        with cls._lock:
+            if not cls.auth_enabled:
+                return True
+            if client_ip in ('127.0.0.1', '::1', 'localhost'):
+                return True
+
+            now = time.time()
+
+            # If token is provided, authenticate strictly by token
+            if token:
+                if token in cls.authorized_tokens:
+                    entry = cls.authorized_tokens[token]
+                    if now - entry.get('created', 0) < cls.TOKEN_TTL:
+                        return True
+                    else:
+                        cls.authorized_tokens.pop(token, None)
+                return False
+
+            # Check IP fallback only when no token is provided
+            if client_ip in cls.authorized_ips:
+                auth_time = cls.authorized_ips[client_ip]
+                if now - auth_time < cls.TOKEN_TTL:
+                    return True
+                else:
+                    cls.authorized_ips.pop(client_ip, None)
+
+            return False
+

@@ -34,6 +34,7 @@ jobs:
       - name: Test Python CLI & Modules
         run: |
           python3 -m pip install .
+          python3 -m unittest discover tests
           hotspot-share --version
 
       - name: Build Native Desktop GUI Launcher
