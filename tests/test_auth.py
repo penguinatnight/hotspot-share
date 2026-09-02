@@ -18,9 +18,10 @@ class TestAuthManager(unittest.TestCase):
     def test_enable_pin_auth_random(self):
         pin = AuthManager.enable_pin_auth()
         self.assertTrue(AuthManager.auth_enabled)
-        self.assertEqual(len(pin), 4)
+        self.assertEqual(len(pin), 8)
         self.assertTrue(pin.isdigit())
         self.assertEqual(AuthManager.pin_code, pin)
+        self.assertEqual(len(AuthManager.get_formatted_pin()), 9) # "XXXX XXXX"
 
     def test_enable_pin_auth_custom(self):
         pin = AuthManager.enable_pin_auth("7890")

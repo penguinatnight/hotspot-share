@@ -11,6 +11,7 @@ class AuthManager:
     failed_attempts = {}    # ip -> list of failure timestamps
     _lock = threading.Lock()
 
+    DEFAULT_PIN_LENGTH = 8
     TOKEN_TTL = 86400       # 24 hours
     MAX_FAILURES = 5
     FAIL_WINDOW = 60        # 1 minute window
@@ -20,14 +21,29 @@ class AuthManager:
     def enable_pin_auth(cls, custom_pin: str = None):
         with cls._lock:
             cls.auth_enabled = True
-            if custom_pin and len(custom_pin) >= 4:
+            if custom_pin and len(custom_pin.strip()) >= 4:
                 cls.pin_code = custom_pin.strip()
             else:
-                cls.pin_code = "".join(secrets.choice(string.digits) for _ in range(4))
+                cls.pin_code = "".join(secrets.choice(string.digits) for _ in range(cls.DEFAULT_PIN_LENGTH))
             cls.authorized_tokens.clear()
             cls.authorized_ips.clear()
             cls.failed_attempts.clear()
             return cls.pin_code
+
+    @classmethod
+    def regenerate_pin(cls):
+        with cls._lock:
+            cls.pin_code = "".join(secrets.choice(string.digits) for _ in range(cls.DEFAULT_PIN_LENGTH))
+            cls.authorized_tokens.clear()
+            cls.authorized_ips.clear()
+            cls.failed_attempts.clear()
+            return cls.pin_code
+
+    @classmethod
+    def get_formatted_pin(cls) -> str:
+        if len(cls.pin_code) == 8:
+            return f"{cls.pin_code[:4]} {cls.pin_code[4:]}"
+        return cls.pin_code
 
     @classmethod
     def disable_pin_auth(cls):

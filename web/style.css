@@ -899,19 +899,53 @@ main {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 20px;
-  width: 100%;
-  max-width: 460px;
-  padding: 28px 24px;
+  width: 92%;
+  max-width: 620px;
+  height: 520px;
+  min-height: 520px;
+  max-height: 90vh;
+  padding: 0;
   position: relative;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.onboarding-header {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.onboarding-brand-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.onboarding-step-pill {
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .onboarding-skip {
-  position: absolute;
-  top: 18px;
-  right: 20px;
   background: none;
   border: none;
   color: var(--text-muted);
@@ -921,16 +955,29 @@ main {
 }
 .onboarding-skip:hover { color: var(--text-primary); }
 
+.onboarding-viewport {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .onboarding-slide {
+  position: absolute;
+  inset: 0;
   display: none;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
+  padding: 20px 28px;
+  box-sizing: border-box;
 }
-.onboarding-slide.active { display: flex; animation: slideFade 0.3s ease; }
+.onboarding-slide.active { display: flex; animation: slideFade 0.25s ease; }
 
 @keyframes slideFade {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -1213,12 +1260,16 @@ main {
 
 /* Onboarding Footer */
 .onboarding-footer {
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 24px;
-  padding-top: 16px;
+  padding: 0 24px;
   border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  margin: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .slide-dots {
@@ -1267,11 +1318,179 @@ main {
 }
 .btn-onboard-next:active { opacity: 0.85; }
 
+/* 8-Digit PIN Onboarding Visuals */
+.pin-demo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.pin-shield-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+}
+
+.pin-demo-blocks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pin-digit-box {
+  width: 32px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-focus);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.pin-digit-sep {
+  color: var(--text-muted);
+  font-size: 16px;
+  padding: 0 2px;
+}
+
+.pin-demo-caption {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Host PIN Status Badge */
+.pin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.pin-status-badge:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+}
+.pin-status-badge b {
+  color: var(--text-primary);
+  letter-spacing: 1.5px;
+  font-family: monospace;
+}
+
+/* PWA Mobile Header & Banner */
+.btn-pwa-header {
+  background: var(--btn-bg) !important;
+  color: var(--btn-text) !important;
+  border: none !important;
+  padding: 5px 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+}
+
+.pwa-mobile-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 10px 16px 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.3s ease;
+}
+
+.pwa-banner-icon {
+  display: flex;
+  align-items: center;
+  color: var(--btn-bg);
+  flex-shrink: 0;
+}
+
+.pwa-banner-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.pwa-banner-info b {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.pwa-banner-info span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.pwa-banner-cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-banner-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.btn-banner-close:hover { color: var(--text-primary); }
+
+.btn-refresh-mini {
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.btn-refresh-mini:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
 @media (max-width: 600px) {
   #tourBtn {
     display: none !important;
   }
   #onboardingOverlay {
+    display: none !important;
+  }
+  .pin-status-badge {
     display: none !important;
   }
 }
