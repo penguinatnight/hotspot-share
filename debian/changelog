@@ -1,3 +1,14 @@
+hotspot-share (2.0.1-1) unstable; urgency=medium
+
+  * Added Progressive Web App (PWA) offline shell and service worker caching.
+  * Added mDNS and UDP broadcast peer auto-discovery engine.
+  * Added ephemeral self-signed TLS/HTTPS encryption with --ssl flag.
+  * Added smart batch conflict resolution engine with auto-renaming.
+  * Fixed WebKitGTK blank QR canvas rendering bug.
+  * Updated AppStream metadata with high-resolution screenshots and search SEO.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Wed, 02 Sep 2026 23:45:00 +0300
+
 hotspot-share (2.0.0-1) unstable; urgency=medium
 
   * Initial professional store release for Ubuntu and Debian.
