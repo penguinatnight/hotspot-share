@@ -388,7 +388,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 'qr_svg': qr_svg,
                 'qr_matrix': qr_matrix,
                 'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
+                'auth_enabled': AuthManager.auth_enabled,
                 'pin_code': AuthManager.pin_code if self.is_client_local() else "",
+                'formatted_pin': AuthManager.get_formatted_pin() if self.is_client_local() else "",
                 'hotspot_active': hotspot_info.get('active', False),
                 'hotspot_name': hotspot_info.get('name', ''),
                 'beams': BeamTracker.get_active_beams(self.client_address[0])
@@ -619,6 +621,41 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_json({'status': 'error', 'message': 'Too many failed attempts. Locked out for 30s.'}, status=429)
             else:
                 self.send_json({'status': 'error', 'message': 'Invalid PIN code'}, status=403)
+            return
+
+        elif path == '/api/auth/configure':
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: PIN configuration is restricted to the host PC'}, status=403)
+                return
+            data, err = self.read_json_body(max_size=4096)
+            if err:
+                self.send_json({'status': 'error', 'message': err}, status=400)
+                return
+            action = data.get('action', 'toggle')
+            if action == 'enable':
+                custom_pin = data.get('pin')
+                pin = AuthManager.enable_pin_auth(custom_pin)
+                self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin()})
+            elif action == 'disable':
+                AuthManager.disable_pin_auth()
+                self.send_json({'status': 'ok', 'auth_enabled': False, 'pin_code': '', 'formatted_pin': ''})
+            elif action == 'regenerate':
+                pin = AuthManager.regenerate_pin()
+                self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin()})
+            elif action == 'set_pin':
+                new_pin = (data.get('pin') or '').strip().replace(' ', '')
+                if len(new_pin) == 8 and new_pin.isdigit():
+                    AuthManager.enable_pin_auth(new_pin)
+                    self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': new_pin, 'formatted_pin': AuthManager.get_formatted_pin()})
+                else:
+                    self.send_json({'status': 'error', 'message': 'PIN must be exactly 8 digits'}, status=400)
+            else:
+                if AuthManager.auth_enabled:
+                    AuthManager.disable_pin_auth()
+                    self.send_json({'status': 'ok', 'auth_enabled': False, 'pin_code': '', 'formatted_pin': ''})
+                else:
+                    pin = AuthManager.enable_pin_auth()
+                    self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin()})
             return
 
         # Check authentication for remaining endpoints

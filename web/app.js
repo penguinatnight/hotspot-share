@@ -35,18 +35,24 @@ function showPinAuthModal(msg = '') {
   pinModalShown = true;
 
   const html = `
-    <h3 style="margin-bottom:12px;font-size:18px;">PIN Verification</h3>
-    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">
-      This Hotspot Share server requires pairing. Enter the 4-digit PIN shown on the PC screen:
-    </p>
-    ${msg ? `<p style="color:#ef4444;font-size:13px;margin-bottom:12px;">${escapeHtml(msg)}</p>` : ''}
-    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;">
-      <input type="text" id="pinAuthInput" maxlength="6" placeholder="PIN" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
-        style="width:140px;font-size:24px;text-align:center;letter-spacing:4px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);"
-        onkeydown="if(event.key==='Enter') submitPinAuth()">
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;">
-      <button class="btn-primary" onclick="submitPinAuth()">Pair & Connect</button>
+    <div style="text-align:center;padding:10px 4px;">
+      <div style="width:48px;height:48px;border-radius:14px;background:var(--btn-secondary-bg);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;color:var(--text-primary);">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h3 style="margin-bottom:6px;font-size:18px;font-weight:700;color:var(--text-primary);">8-Digit Security PIN</h3>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.4;">
+        This Hotspot Share server requires pairing. Enter the 8-digit PIN displayed on the PC screen:
+      </p>
+      ${msg ? `<p style="color:#ef4444;font-size:12px;margin-bottom:12px;font-weight:600;">${escapeHtml(msg)}</p>` : ''}
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;">
+        <input type="text" id="pinAuthInput" maxlength="9" placeholder="•••• ••••" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
+          style="width:200px;font-size:22px;text-align:center;letter-spacing:3px;font-family:monospace;font-weight:700;padding:10px 14px;border-radius:10px;border:1px solid var(--border-focus);background:var(--card-bg);color:var(--text-primary);"
+          oninput="formatPinAuthInput(this)"
+          onkeydown="if(event.key==='Enter') submitPinAuth()">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn-primary" style="padding:10px 24px;font-size:14px;font-weight:600;" onclick="submitPinAuth()">Authorize & Connect</button>
+      </div>
     </div>
   `;
   document.getElementById('modalBody').innerHTML = html;
@@ -57,16 +63,26 @@ function showPinAuthModal(msg = '') {
   }, 100);
 }
 
+function formatPinAuthInput(input) {
+  let val = input.value.replace(/\D/g, '');
+  if (val.length > 8) val = val.slice(0, 8);
+  if (val.length > 4) {
+    input.value = val.slice(0, 4) + ' ' + val.slice(4);
+  } else {
+    input.value = val;
+  }
+}
+
 async function submitPinAuth() {
   const inp = document.getElementById('pinAuthInput');
-  const pin = inp ? inp.value.trim() : '';
-  if (!pin) return;
+  const rawPin = inp ? inp.value.replace(/\s+/g, '').trim() : '';
+  if (!rawPin) return;
 
   try {
     const res = await fetch('/api/auth/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin })
+      body: JSON.stringify({ pin: rawPin })
     });
     const data = await res.json();
     if (res.ok && data.status === 'ok' && data.token) {
@@ -74,13 +90,13 @@ async function submitPinAuth() {
       localStorage.setItem('hotspot_share_token', authToken);
       pinModalShown = false;
       document.getElementById('modal').classList.remove('active');
-      showToast('Paired successfully!');
+      showToast('Connected & paired!');
       sendHeartbeatAndPollStatus();
       loadFiles();
       loadClip();
     } else {
       pinModalShown = false;
-      showPinAuthModal(data.message || 'Invalid PIN code. Please try again.');
+      showPinAuthModal(data.message || 'Invalid PIN code. Please check PC screen.');
     }
   } catch (e) {
     pinModalShown = false;
@@ -249,96 +265,243 @@ async function getPhoneStorageInfo() {
   return null;
 }
 
-function openDeviceSettingsModal() {
-  const profile = detectHardwareProfile();
-  const currentModel = cachedCustomModel || cachedNickname || (profile.model !== 'Linux Desktop' && profile.model !== 'Windows PC' && profile.model !== 'Apple Mac' ? profile.model : '') || 'Samsung Galaxy A54 5G';
-  const currentStorage = cachedStorageGb || 128;
+let currentServerAuthEnabled = false;
+let currentServerPin = "";
+
+async function openSecurityModal() {
+  try {
+    const res = await fetch('/api/status?_t=' + Date.now(), { headers: authHeaders() });
+    const data = await res.json();
+    currentServerAuthEnabled = !!data.auth_enabled;
+    currentServerPin = data.pin_code || "";
+  } catch (e) {}
+
+  const formatted = (currentServerPin.length === 8)
+    ? `${currentServerPin.slice(0, 4)} ${currentServerPin.slice(4)}`
+    : (currentServerPin || '--------');
 
   const html = `
-    <h3 style="font-size:17px;font-weight:600;margin-bottom:4px;">Device & Storage Configuration</h3>
-    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
-      Auto-profiled GPU: <b>${escapeHtml(profile.gpu || 'Mobile GPU')}</b> &bull; Display: <b>${profile.screenWidth}x${profile.screenHeight}</b>
-    </p>
-
-    <div class="config-group">
-      <label class="config-label">Device Name / Model</label>
-      <input type="text" id="cfgDeviceName" class="config-input" value="${escapeHtml(currentModel)}" placeholder="e.g. Samsung Galaxy S24 Ultra">
-      
-      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-top:6px;">QUICK SELECT POPULAR MODELS:</div>
-      <div class="presets-grid">
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy S24 Ultra')">S24 Ultra</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy S23 Ultra')">S23 Ultra</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy A55 5G')">Galaxy A55 5G</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy A54 5G')">Galaxy A54 5G</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy A35 5G')">Galaxy A35 5G</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Samsung Galaxy A15 5G')">Galaxy A15 5G</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Google Pixel 9 Pro XL')">Pixel 9 Pro XL</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Google Pixel 8 Pro')">Pixel 8 Pro</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Google Pixel 8a')">Pixel 8a</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('iPhone 16 Pro Max')">iPhone 16 Pro Max</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('iPhone 15 Pro')">iPhone 15 Pro</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('OnePlus 12')">OnePlus 12</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('POCO X6 Pro')">POCO X6 Pro</button>
-        <button type="button" class="preset-chip" onclick="setCfgModel('Xiaomi 14')">Xiaomi 14</button>
+    <div style="text-align:left;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--btn-secondary-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);color:var(--text-primary);">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <div>
+          <h3 style="font-size:17px;font-weight:700;margin:0;color:var(--text-primary);">Security & 8-Digit PIN</h3>
+          <span style="font-size:12px;color:var(--text-secondary);">Protect file transfers with an 8-digit authorization code</span>
+        </div>
       </div>
-    </div>
 
-    <div class="config-group" style="margin-top:12px;">
-      <label class="config-label">Phone Total Storage Capacity</label>
-      <div class="presets-grid">
-        <button type="button" class="preset-chip ${currentStorage === 64 ? 'active' : ''}" onclick="setCfgStorage(64)">64 GB</button>
-        <button type="button" class="preset-chip ${currentStorage === 128 ? 'active' : ''}" onclick="setCfgStorage(128)">128 GB</button>
-        <button type="button" class="preset-chip ${currentStorage === 256 ? 'active' : ''}" onclick="setCfgStorage(256)">256 GB</button>
-        <button type="button" class="preset-chip ${currentStorage === 512 ? 'active' : ''}" onclick="setCfgStorage(512)">512 GB</button>
-        <button type="button" class="preset-chip ${currentStorage === 1024 ? 'active' : ''}" onclick="setCfgStorage(1024)">1 TB</button>
+      <!-- PIN Settings Card -->
+      <div style="background:var(--btn-secondary-bg);border:1px solid var(--border);border-radius:14px;padding:14px;margin:14px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div>
+            <b style="font-size:13px;color:var(--text-primary);display:block;">Require 8-Digit PIN</b>
+            <span style="font-size:11px;color:var(--text-secondary);">Connecting phones must enter this PIN before transferring</span>
+          </div>
+          <button class="${currentServerAuthEnabled ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px;font-size:12px;font-weight:600;" onclick="toggleAuthSecurity(!currentServerAuthEnabled)">
+            ${currentServerAuthEnabled ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+
+        <!-- Live PIN Display and Actions -->
+        <div id="pinConfigDetails" style="display:${currentServerAuthEnabled ? 'block' : 'none'};margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Active 8-Digit PIN</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card-bg);border:1px solid var(--border-focus);padding:10px 14px;border-radius:10px;">
+            <span id="activePinDisplay" style="font-family:monospace;font-size:22px;font-weight:700;letter-spacing:3px;color:var(--text-primary);">${escapeHtml(formatted)}</span>
+            <button class="btn-secondary" onclick="regeneratePinCode()" style="font-size:11px;padding:6px 12px;">Regenerate</button>
+          </div>
+
+          <!-- Custom PIN Input -->
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+            <input type="text" id="customPinInput" maxlength="8" placeholder="Custom 8-Digit PIN" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:14px;color:var(--text-primary);letter-spacing:1px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <button class="btn-secondary" onclick="setCustomPinCode()" style="font-size:11px;padding:8px 12px;">Set PIN</button>
+          </div>
+        </div>
       </div>
-      <input type="number" id="cfgStorageCustom" class="config-input" style="margin-top:6px;" value="${currentStorage}" placeholder="Storage in GB">
-    </div>
 
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveDeviceConfig()">Save & Apply</button>
+      <!-- Tutorial: How 8-Digit PIN Works -->
+      <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+        <b style="font-size:12px;color:var(--text-primary);display:block;margin-bottom:6px;">How 8-Digit PIN Pairing Works:</b>
+        <ul style="font-size:11px;color:var(--text-secondary);padding-left:16px;margin:0;line-height:1.6;">
+          <li><b>One-Time Pairing:</b> Connecting phones enter the 8-digit code once to receive an in-memory session token.</li>
+          <li><b>Rate-Limited:</b> 5 consecutive incorrect PIN attempts locks out the client IP for 30 seconds.</li>
+          <li><b>Host-Only Access:</b> PIN configuration, regeneration, and custom PIN changes can only be performed on this PC.</li>
+        </ul>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="btn-primary" onclick="closeModal()">Done</button>
+      </div>
     </div>
   `;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modal').classList.add('active');
 }
 
-function setCfgModel(name) {
-  document.getElementById('cfgDeviceName').value = name;
-}
-
-function setCfgStorage(gb) {
-  document.getElementById('cfgStorageCustom').value = gb;
-}
-
-async function saveDeviceConfig() {
-  const name = document.getElementById('cfgDeviceName').value.trim();
-  const gb = parseInt(document.getElementById('cfgStorageCustom').value, 10) || 128;
-
-  if (name) {
-    cachedNickname = name;
-    cachedCustomModel = name;
-    localStorage.setItem('hotspot_device_nickname', name);
-    localStorage.setItem('hotspot_phone_model', name);
-  }
-  cachedStorageGb = gb;
-  localStorage.setItem('hotspot_phone_storage_gb', gb.toString());
-
+async function toggleAuthSecurity(enable) {
   try {
-    await fetch('/api/rename_device', {
+    const res = await fetch('/api/auth/configure', {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        ip: isLocalClient ? currentConnectedPhoneIp : '',
-        name: name
-      })
+      body: JSON.stringify({ action: enable ? 'enable' : 'disable' })
     });
-  } catch (e) {}
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentServerAuthEnabled = data.auth_enabled;
+      currentServerPin = data.pin_code || "";
+      openSecurityModal();
+      sendHeartbeatAndPollStatus();
+      showToast(enable ? '8-Digit PIN Protection Enabled' : 'PIN Protection Disabled');
+    }
+  } catch (e) {
+    showToast('Failed to update PIN: ' + e.message);
+  }
+}
 
-  closeModal();
-  showToast('Device updated: ' + (name || `${gb} GB`));
-  sendHeartbeatAndPollStatus();
+async function regeneratePinCode() {
+  try {
+    const res = await fetch('/api/auth/configure', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action: 'regenerate' })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentServerPin = data.pin_code;
+      openSecurityModal();
+      sendHeartbeatAndPollStatus();
+      showToast('New 8-digit PIN generated!');
+    }
+  } catch (e) {
+    showToast('Failed to regenerate PIN: ' + e.message);
+  }
+}
+
+async function setCustomPinCode() {
+  const inp = document.getElementById('customPinInput');
+  const pin = inp ? inp.value.trim() : '';
+  if (pin.length !== 8 || !/^\d{8}$/.test(pin)) {
+    showToast('PIN must be exactly 8 digits');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/configure', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action: 'set_pin', pin })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentServerPin = data.pin_code;
+      openSecurityModal();
+      sendHeartbeatAndPollStatus();
+      showToast('Custom 8-digit PIN set!');
+    } else {
+      showToast(data.message || 'Failed to set PIN');
+    }
+  } catch (e) {
+    showToast('Failed to set PIN: ' + e.message);
+  }
+}
+
+// PWA INSTALLATION SYSTEM
+let deferredPwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPwaPrompt = e;
+  updatePwaInstallVisibility();
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredPwaPrompt = null;
+  updatePwaInstallVisibility();
+  showToast('Hotspot Share installed on phone!');
+});
+
+function isAppStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function updatePwaInstallVisibility() {
+  const isMobile = !isLocalClient;
+  const standalone = isAppStandalone();
+  const bannerDismissed = sessionStorage.getItem('pwa_banner_dismissed') === 'true';
+
+  const headerBtn = document.getElementById('pwaHeaderBtn');
+  const banner = document.getElementById('pwaMobileBanner');
+
+  if (isMobile && !standalone) {
+    if (headerBtn) headerBtn.style.display = 'inline-flex';
+    if (banner && !bannerDismissed) banner.style.display = 'flex';
+  } else {
+    if (headerBtn) headerBtn.style.display = 'none';
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+function dismissPwaBanner() {
+  sessionStorage.setItem('pwa_banner_dismissed', 'true');
+  const banner = document.getElementById('pwaMobileBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+async function triggerPwaInstall() {
+  if (deferredPwaPrompt) {
+    deferredPwaPrompt.prompt();
+    const { outcome } = await deferredPwaPrompt.userChoice;
+    if (outcome === 'accepted') {
+      deferredPwaPrompt = null;
+      updatePwaInstallVisibility();
+    }
+  } else {
+    showPwaInstallGuideModal();
+  }
+}
+
+function showPwaInstallGuideModal() {
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const html = `
+    <div style="text-align:left;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--btn-bg);color:var(--btn-text);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        </div>
+        <div>
+          <h3 style="font-size:16px;font-weight:700;margin:0;color:var(--text-primary);">Install Hotspot Share</h3>
+          <span style="font-size:12px;color:var(--text-secondary);">Add to your home screen for full-screen sharing</span>
+        </div>
+      </div>
+
+      ${isIos ? `
+        <div style="background:var(--btn-secondary-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <b style="font-size:13px;color:var(--text-primary);display:block;margin-bottom:10px;">Safari on iPhone / iPad:</b>
+          <ol style="font-size:12px;color:var(--text-secondary);padding-left:18px;margin:0;line-height:1.7;">
+            <li>Tap the <b>Share</b> button in Safari's bottom toolbar.</li>
+            <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+            <li>Tap <b>Add</b> in the top-right corner.</li>
+          </ol>
+        </div>
+      ` : `
+        <div style="background:var(--btn-secondary-bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <b style="font-size:13px;color:var(--text-primary);display:block;margin-bottom:10px;">Chrome on Android:</b>
+          <ol style="font-size:12px;color:var(--text-secondary);padding-left:18px;margin:0;line-height:1.7;">
+            <li>Tap the <b>Menu (⋮)</b> in the top right corner of Chrome.</li>
+            <li>Tap <b>Install app</b> or <b>Add to Home screen</b>.</li>
+            <li>Tap <b>Install</b> to confirm.</li>
+          </ol>
+        </div>
+      `}
+
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="btn-primary" onclick="closeModal()">Got It</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modal').classList.add('active');
 }
 
 let lastActiveTransferCount = 0;
@@ -469,23 +632,45 @@ async function sendHeartbeatAndPollStatus() {
         }
       }
 
+      // Update Desktop Host PIN Badge
+      const hostPinBadge = document.getElementById('hostPinBadge');
+      const hostPinText = document.getElementById('hostPinCodeText');
+      if (hostPinBadge && hostPinText) {
+        if (data.auth_enabled && data.pin_code) {
+          hostPinBadge.style.display = 'inline-flex';
+          hostPinText.innerText = data.formatted_pin || data.pin_code;
+        } else {
+          hostPinBadge.style.display = 'none';
+        }
+      }
+
+      const secBtn = document.getElementById('securityBtn');
+      if (secBtn) secBtn.style.display = 'inline-flex';
+      updatePwaInstallVisibility();
+
       // Auto-trigger onboarding ONLY on PC desktop
       if (!localStorage.getItem('hotspot_onboarded') && !onboardingTriggered) {
         onboardingTriggered = true;
-        setTimeout(() => openOnboarding(false), 500);
+        setTimeout(() => openOnboarding(false), 400);
       }
     } else {
       // Phone View
       beacon.className = 'beacon-dot connected';
-      const myDisplayName = cachedNickname || cachedCustomModel || (hw.model !== 'Linux Desktop' && hw.model !== 'Windows PC' && hw.model !== 'Apple Mac' ? hw.model : '') || 'Phone';
+      const myDisplayName = (hw.model !== 'Linux Desktop' && hw.model !== 'Windows PC' && hw.model !== 'Apple Mac' ? hw.model : '') || 'Phone';
       deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
       qrCard.style.display = 'none';
 
       // Always hide tour button and onboarding modal on phones
       const tourBtn = document.getElementById('tourBtn');
       if (tourBtn) tourBtn.style.display = 'none';
+      const secBtn = document.getElementById('securityBtn');
+      if (secBtn) secBtn.style.display = 'none';
+      const hostPinBadge = document.getElementById('hostPinBadge');
+      if (hostPinBadge) hostPinBadge.style.display = 'none';
       const overlay = document.getElementById('onboardingOverlay');
       if (overlay) overlay.style.display = 'none';
+
+      updatePwaInstallVisibility();
 
       const btnFiles = document.getElementById('btnSelectFiles');
       const btnFolder = document.getElementById('btnSelectFolder');
@@ -824,7 +1009,7 @@ function updateFilesBadge(count) {
 
 // ONBOARDING TOUR SYSTEM
 let currentOnboardSlide = 0;
-const totalOnboardSlides = 4;
+const totalOnboardSlides = 5;
 
 function openOnboarding(force = false) {
   // Never show onboarding on mobile phone
@@ -846,6 +1031,9 @@ function handleOnboardingBackdropClick(e) {
 }
 
 function updateOnboardSlideUI() {
+  const pill = document.getElementById('onboardStepPill');
+  if (pill) pill.innerText = `Step ${currentOnboardSlide + 1} of ${totalOnboardSlides}`;
+
   for (let i = 0; i < totalOnboardSlides; i++) {
     const slide = document.getElementById(`onboard-slide-${i}`);
     if (slide) slide.classList.toggle('active', i === currentOnboardSlide);

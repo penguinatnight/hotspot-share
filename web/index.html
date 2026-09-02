@@ -10,7 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/style.css?v=2.0.6">
+<link rel="stylesheet" href="/style.css?v=2.0.7">
 </head>
 <body>
 
@@ -21,7 +21,13 @@
     <button class="tab-btn" id="btn-files" onclick="switchTab('files')">Files <span class="tab-badge" id="filesTabBadge" style="display:none;">0</span></button>
     <button class="tab-btn" id="btn-clip" onclick="switchTab('clip')">Clipboard</button>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="btn-theme btn-pwa-header" id="pwaHeaderBtn" onclick="triggerPwaInstall()" style="display:none;" title="Install as App on Phone">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      <span>Install App</span>
+    </button>
+    <button class="btn-theme" onclick="openSecurityModal()" id="securityBtn" title="Security & 8-Digit PIN Settings">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
     <button class="btn-theme" onclick="openOnboarding(true)" id="tourBtn" title="Product Tour & Feature Guide">
       <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </button>
@@ -35,21 +41,35 @@
 </header>
 
 <main>
+  <div class="pwa-mobile-banner" id="pwaMobileBanner" style="display:none;">
+    <div class="pwa-banner-icon">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+    </div>
+    <div class="pwa-banner-info">
+      <b>Install Hotspot Share</b>
+      <span>Add to home screen for fast full-screen file transfers</span>
+    </div>
+    <div class="pwa-banner-cta">
+      <button class="btn-primary btn-sm" onclick="triggerPwaInstall()">Install</button>
+      <button class="btn-banner-close" onclick="dismissPwaBanner()">&times;</button>
+    </div>
+  </div>
+
   <section class="system-status-bar">
     <div class="status-row-top">
       <div class="device-presence">
         <div class="beacon-dot" id="beaconDot"></div>
-        <span id="deviceNameLabel" style="cursor:pointer;" onclick="openDeviceSettingsModal()">Checking connection...</span>
-        <button class="btn-rename" onclick="openDeviceSettingsModal()" title="Device details and storage configuration">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          <span>Device / Storage</span>
-        </button>
-        <button class="btn-rename" onclick="manualRefresh()" title="Refresh connection & storage">
+        <span id="deviceNameLabel">Checking connection...</span>
+        <div class="pin-status-badge" id="hostPinBadge" style="display:none;" onclick="openSecurityModal()" title="Click to view or configure 8-Digit PIN">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>PIN: <b id="hostPinCodeText">--------</b></span>
+        </div>
+        <button class="btn-refresh-mini" onclick="manualRefresh()" title="Refresh connection & storage">
           <svg viewBox="0 0 24 24" width="13" height="13" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           <span>Refresh</span>
         </button>
       </div>
-      <div class="storage-metrics" style="cursor:pointer;" onclick="openDeviceSettingsModal()">
+      <div class="storage-metrics">
         <span id="diskSpaceText">Available free</span>
       </div>
     </div>
@@ -195,135 +215,165 @@
 
 <div id="toast"></div>
 
-<!-- ONBOARDING TOUR MODAL -->
+<!-- ONBOARDING TOUR MODAL (Fixed Dimensions, Full Graceful Experience) -->
 <div class="onboarding-overlay" id="onboardingOverlay" style="display:none;" onclick="handleOnboardingBackdropClick(event)">
   <div class="onboarding-card" onclick="event.stopPropagation()">
-    <button class="onboarding-skip" onclick="finishOnboarding()" title="Skip product tour">Skip</button>
-
-    <!-- Slide 0: Welcome & AirDrop for Linux -->
-    <div class="onboarding-slide active" id="onboard-slide-0">
-      <div class="anim-container">
-        <div class="beam-demo">
-          <div class="demo-device pc-device">
-            <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
-            <span class="demo-device-caption">Linux PC</span>
-          </div>
-          <div class="beam-pulses">
-            <div class="pulse-line"></div>
-            <div class="pulse-dot"></div>
-            <div class="beam-packet">
-              <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-            </div>
-          </div>
-          <div class="demo-device phone-device">
-            <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
-            <span class="demo-device-caption">Phone</span>
-          </div>
-        </div>
+    
+    <!-- Fixed Header -->
+    <div class="onboarding-header">
+      <div class="onboarding-brand">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3C6.95 3 3.1 4.85 0 7.18L12 21 24 7.19C20.9 4.85 17.05 3 12 3zm0 4c3.5 0 6.55 1.25 9 3.08L12 18.77 3 10.08C5.45 8.25 8.5 7 12 7z"/></svg>
+        <span class="onboarding-brand-title">Hotspot Share</span>
+        <span class="onboarding-step-pill" id="onboardStepPill">Step 1 of 5</span>
       </div>
-      <h2>AirDrop for Linux</h2>
-      <p class="onboard-tagline">High-speed local peer-to-peer file sharing and clipboard synchronization between Linux desktops and mobile phones.</p>
-      <div class="onboard-pills">
-        <span class="pill-badge">Zero Phone Apps</span>
-        <span class="pill-badge">Gigabit Wi-Fi 6</span>
-        <span class="pill-badge">iOS & Android</span>
-      </div>
+      <button class="onboarding-skip" onclick="finishOnboarding()" title="Skip product tour">Skip</button>
     </div>
 
-    <!-- Slide 1: Privacy, Zero Cloud, No Login -->
-    <div class="onboarding-slide" id="onboard-slide-1">
-      <div class="anim-container">
-        <div class="shield-demo">
-          <div class="shield-circle">
-            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-          </div>
-          <div class="shield-glow-ring"></div>
-        </div>
-      </div>
-      <h2>100% Private & Open Source</h2>
-      <p class="onboard-tagline">Your personal files, documents, and clipboard never touch third-party cloud servers, external trackers, or the internet.</p>
-      <div class="privacy-features">
-        <div class="pf-item">
-          <span class="pf-icon">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-          </span>
-          <div><b>No Login or Accounts:</b> Instant pairing with zero sign-ups or credentials.</div>
-        </div>
-        <div class="pf-item">
-          <span class="pf-icon">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </span>
-          <div><b>Zero Data Retention:</b> Direct local network streaming with zero cloud storage.</div>
-        </div>
-        <div class="pf-item">
-          <span class="pf-icon">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          </span>
-          <div><b>100% Free & Open Source:</b> Licensed under GPL-3.0 with complete code transparency.</div>
-        </div>
-      </div>
-    </div>
+    <!-- Fixed Viewport for All Slides (Zero Box Resizing) -->
+    <div class="onboarding-viewport">
 
-    <!-- Slide 2: Camera QR Pairing -->
-    <div class="onboarding-slide" id="onboard-slide-2">
-      <div class="anim-container">
-        <div class="scan-demo">
-          <div class="scan-frame">
-            <div class="corner-tl"></div><div class="corner-tr"></div>
-            <div class="corner-bl"></div><div class="corner-br"></div>
-            <div class="scan-qr-sample">
-              <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h2v2h-2v-2zm2 2h3v3h-3v-3zm-5 1h2v2h-2v-2z"/></svg>
+      <!-- Slide 0: Welcome & AirDrop for Linux -->
+      <div class="onboarding-slide active" id="onboard-slide-0">
+        <div class="anim-container">
+          <div class="beam-demo">
+            <div class="demo-device pc-device">
+              <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+              <span class="demo-device-caption">Linux PC</span>
             </div>
-            <div class="scan-laser"></div>
-          </div>
-        </div>
-      </div>
-      <h2>Instant Camera QR Pairing</h2>
-      <p class="onboard-tagline">Connect phone to your PC's Wi-Fi hotspot or local network, point your phone camera at the QR code, and tap the link.</p>
-      <div class="onboard-steps-list">
-        <div class="step-badge">1. Connect Wi-Fi</div>
-        <div class="step-badge">2. Scan QR</div>
-        <div class="step-badge">3. Transfer Instantly</div>
-      </div>
-    </div>
-
-    <!-- Slide 3: Clipboard Sync & Folder Transfers -->
-    <div class="onboarding-slide" id="onboard-slide-3">
-      <div class="anim-container">
-        <div class="clipboard-demo">
-          <div class="clip-card-sample">
-            <div class="clip-header-sample">
-              <span class="clip-tag">Desktop Clipboard</span>
-              <span class="clip-shortcut">Ctrl+V Ready</span>
+            <div class="beam-pulses">
+              <div class="pulse-line"></div>
+              <div class="pulse-dot"></div>
+              <div class="beam-packet">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+              </div>
             </div>
-            <div class="clip-content-sample">
-              <code>console.log("AirDrop for Linux!");</code>
+            <div class="demo-device phone-device">
+              <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+              <span class="demo-device-caption">Phone</span>
             </div>
           </div>
-          <div class="clip-arrow">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-          </div>
-          <div class="phone-clip-preview">
-            <span>Mobile Clipboard Synced</span>
-          </div>
+        </div>
+        <h2>AirDrop for Linux</h2>
+        <p class="onboard-tagline">High-speed local peer-to-peer file sharing and clipboard synchronization between Linux desktops and mobile phones.</p>
+        <div class="onboard-pills">
+          <span class="pill-badge">Zero Phone Apps</span>
+          <span class="pill-badge">Gigabit Wi-Fi 6</span>
+          <span class="pill-badge">iOS & Android</span>
         </div>
       </div>
-      <h2>Clipboard & Folder Transfers</h2>
-      <p class="onboard-tagline">Copy photos, text, or code on Linux and paste on phone — or vice-versa. Download whole nested directory trees as ZIP archives on-the-fly.</p>
-      <div class="onboard-pills">
-        <span class="pill-badge">Image & Text Clipboard</span>
-        <span class="pill-badge">Folder ZIP on-the-Fly</span>
-        <span class="pill-badge">Resumable Chunk Engine</span>
+
+      <!-- Slide 1: Camera QR Pairing -->
+      <div class="onboarding-slide" id="onboard-slide-1">
+        <div class="anim-container">
+          <div class="scan-demo">
+            <div class="scan-frame">
+              <div class="corner-tl"></div><div class="corner-tr"></div>
+              <div class="corner-bl"></div><div class="corner-br"></div>
+              <div class="scan-qr-sample">
+                <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h2v2h-2v-2zm2 2h3v3h-3v-3zm-5 1h2v2h-2v-2z"/></svg>
+              </div>
+              <div class="scan-laser"></div>
+            </div>
+          </div>
+        </div>
+        <h2>Instant Camera QR Pairing</h2>
+        <p class="onboard-tagline">Connect phone to your PC's Wi-Fi hotspot or local network, point your phone camera at the QR code, and tap the link.</p>
+        <div class="onboard-steps-list">
+          <div class="step-badge">1. Connect Wi-Fi</div>
+          <div class="step-badge">2. Scan Camera QR</div>
+          <div class="step-badge">3. Transfer Instantly</div>
+        </div>
       </div>
+
+      <!-- Slide 2: 8-Digit PIN Code Security (Tutorial & Explanation) -->
+      <div class="onboarding-slide" id="onboard-slide-2">
+        <div class="anim-container">
+          <div class="pin-demo-container">
+            <div class="pin-shield-badge">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="pin-demo-blocks">
+              <span class="pin-digit-box">8</span>
+              <span class="pin-digit-box">4</span>
+              <span class="pin-digit-box">9</span>
+              <span class="pin-digit-box">2</span>
+              <span class="pin-digit-sep">&bull;</span>
+              <span class="pin-digit-box">1</span>
+              <span class="pin-digit-box">0</span>
+              <span class="pin-digit-box">5</span>
+              <span class="pin-digit-box">8</span>
+            </div>
+            <div class="pin-demo-caption">8-Digit Pairing Code Generated on PC</div>
+          </div>
+        </div>
+        <h2>8-Digit Security PIN</h2>
+        <p class="onboard-tagline">When pairing over shared or public Wi-Fi, your Linux PC generates an 8-digit PIN. Connecting phones enter this PIN once to authorize transfers.</p>
+        <div class="onboard-pills">
+          <span class="pill-badge">8-Digit Security</span>
+          <span class="pill-badge">Brute-Force Locked (5 Tries)</span>
+          <span class="pill-badge">Host-Controlled</span>
+        </div>
+      </div>
+
+      <!-- Slide 3: Clipboard Sync & Folder Transfers -->
+      <div class="onboarding-slide" id="onboard-slide-3">
+        <div class="anim-container">
+          <div class="clipboard-demo">
+            <div class="clip-card-sample">
+              <div class="clip-header-sample">
+                <span class="clip-tag">Desktop Clipboard</span>
+                <span class="clip-shortcut">Ctrl+V Ready</span>
+              </div>
+              <div class="clip-content-sample">
+                <code>console.log("AirDrop for Linux!");</code>
+              </div>
+            </div>
+            <div class="clip-arrow">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </div>
+            <div class="phone-clip-preview">
+              <span>Mobile Clipboard Synced</span>
+            </div>
+          </div>
+        </div>
+        <h2>Clipboard & Folder Transfers</h2>
+        <p class="onboard-tagline">Copy photos or text on Linux and paste on phone — or vice-versa. Download whole nested directory trees as ZIP archives on-the-fly.</p>
+        <div class="onboard-pills">
+          <span class="pill-badge">Image & Text Clipboard</span>
+          <span class="pill-badge">Folder ZIP on-the-Fly</span>
+          <span class="pill-badge">Resumable 8MB Chunks</span>
+        </div>
+      </div>
+
+      <!-- Slide 4: Zero Telemetry & Phone App Installation -->
+      <div class="onboarding-slide" id="onboard-slide-4">
+        <div class="anim-container">
+          <div class="shield-demo">
+            <div class="shield-circle">
+              <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            </div>
+            <div class="shield-glow-ring"></div>
+          </div>
+        </div>
+        <h2>100% Private & Open Source</h2>
+        <p class="onboard-tagline">No Login or Accounts. Zero Data Retention. Exactly 0 bytes leave your local physical network. On your phone, tap 'Install App' to add Hotspot Share directly to your home screen.</p>
+        <div class="onboard-pills">
+          <span class="pill-badge">0 Bytes to Internet</span>
+          <span class="pill-badge">Installable Phone PWA</span>
+          <span class="pill-badge">100% Open Source</span>
+        </div>
+      </div>
+
     </div>
 
-    <!-- Onboarding Footer Controls -->
+    <!-- Fixed Footer Controls -->
     <div class="onboarding-footer">
       <div class="slide-dots" id="slideDots">
         <span class="dot active" onclick="goToOnboardSlide(0)"></span>
         <span class="dot" onclick="goToOnboardSlide(1)"></span>
         <span class="dot" onclick="goToOnboardSlide(2)"></span>
         <span class="dot" onclick="goToOnboardSlide(3)"></span>
+        <span class="dot" onclick="goToOnboardSlide(4)"></span>
       </div>
       <div class="onboard-nav-buttons">
         <button type="button" class="btn-onboard-back" id="onboardBackBtn" onclick="prevOnboardSlide()" style="display:none;">Back</button>
@@ -333,6 +383,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=2.0.6"></script>
+<script src="/app.js?v=2.0.7"></script>
 </body>
 </html>

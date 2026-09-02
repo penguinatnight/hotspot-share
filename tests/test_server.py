@@ -170,5 +170,42 @@ class TestServer(unittest.TestCase):
             urllib.request.urlopen(req_del_base)
         self.assertEqual(ctx.exception.code, 404)
 
+    def test_auth_configure_endpoint(self):
+        # Configure PIN: Enable
+        url = f"{self.base_url}/api/auth/configure"
+        data = json.dumps({"action": "enable"}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            res = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(res["auth_enabled"])
+            self.assertEqual(len(res["pin_code"]), 8)
+            self.assertEqual(len(res["formatted_pin"]), 9) # "XXXX XXXX"
+
+        # Configure PIN: Regenerate
+        data = json.dumps({"action": "regenerate"}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            res = json.loads(resp.read().decode("utf-8"))
+            self.assertEqual(len(res["pin_code"]), 8)
+
+        # Configure PIN: Set Custom 8-digit
+        data = json.dumps({"action": "set_pin", "pin": "88776655"}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            res = json.loads(resp.read().decode("utf-8"))
+            self.assertEqual(res["pin_code"], "88776655")
+            self.assertEqual(res["formatted_pin"], "8877 6655")
+
+        # Configure PIN: Disable
+        data = json.dumps({"action": "disable"}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+            res = json.loads(resp.read().decode("utf-8"))
+            self.assertFalse(res["auth_enabled"])
+
 if __name__ == "__main__":
     unittest.main()

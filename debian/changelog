@@ -1,3 +1,13 @@
+hotspot-share (2.0.7-1) unstable; urgency=medium
+
+  * Redesigned onboarding into a fixed-dimension, graceful tour with zero card jumping.
+  * Upgraded security PIN authentication to 8 digits with tutorial and dedicated configuration UI.
+  * Removed device rename UI from desktop and mobile companion for a cleaner, automated flow.
+  * Added mobile PWA "Install as App" button, banner, and step-by-step installation instructions.
+  * Added /api/auth/configure endpoint for host-managed security PIN configuration.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 02:00:00 +0300
+
 hotspot-share (2.0.6-1) unstable; urgency=medium
 
   * Set NO_PROXY on WebKitWebContext to bypass portal proxy resolver in Snap.
