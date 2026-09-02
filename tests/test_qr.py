@@ -45,8 +45,8 @@ class TestQR(unittest.TestCase):
         svg = get_svg_qr(text)
         self.assertTrue(svg.startswith("<svg"))
         self.assertTrue(svg.endswith("</svg>"))
-        self.assertIn('viewBox="0 0', svg)
-        self.assertIn('<rect width="100%"', svg)
+        self.assertIn('<rect x="0" y="0"', svg)
+        self.assertIn('fill="#ffffff"', svg)
         self.assertIn('<path d="', svg)
 
     def test_wifi_qr_escaping(self):
