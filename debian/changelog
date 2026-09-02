@@ -1,3 +1,13 @@
+hotspot-share (2.0.5-1) unstable; urgency=medium
+
+  * Resolved WebKitGTK Wayland blank frame by allowing hardware acceleration on demand.
+  * Added WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS to bypass nested bubblewrap deadlock in Snap.
+  * Hardened security: remote file deletion blocked by default unless explicitly configured.
+  * Added comprehensive SECURITY.md, CONTRIBUTING.md, and CodeQL security scanning.
+  * Redesigned documentation with outcome-driven positioning, comparison tables, and compatibility matrix.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:25:00 +0300
+
 hotspot-share (2.0.4-1) unstable; urgency=medium
 
   * Resolved Mesa DRI/EGL driver mismatch inside snap environment.

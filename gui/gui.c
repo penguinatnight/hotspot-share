@@ -246,10 +246,15 @@ static gboolean on_window_delete(GtkWidget *widget, GdkEvent *event, gpointer da
     return FALSE; // Proceed with destroy
 }
 
+static gboolean on_load_failed(WebKitWebView *web_view, WebKitLoadEvent load_event, gchar *failing_uri, GError *error, gpointer user_data) {
+    fprintf(stderr, "[HotspotShare GUI] WebKit load failed for %s: %s\n", failing_uri, error ? error->message : "unknown");
+    return FALSE;
+}
+
 int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
-    setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 1);
+    setenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1", 1);
 
     gtk_init(&argc, &argv);
 
@@ -295,9 +300,7 @@ int main(int argc, char *argv[]) {
 
     WebKitSettings *settings = webkit_settings_new();
     webkit_settings_set_enable_developer_extras(settings, TRUE);
-    webkit_settings_set_enable_webgl(settings, FALSE);
-    webkit_settings_set_enable_accelerated_2d_canvas(settings, FALSE);
-    webkit_settings_set_hardware_acceleration_policy(settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
+    webkit_settings_set_hardware_acceleration_policy(settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ON_DEMAND);
     webkit_settings_set_enable_smooth_scrolling(settings, TRUE);
     webkit_settings_set_enable_javascript_markup(settings, TRUE);
     webkit_settings_set_enable_media_stream(settings, TRUE);
@@ -305,6 +308,7 @@ int main(int argc, char *argv[]) {
     webkit_settings_set_javascript_can_access_clipboard(settings, TRUE);
 
     GtkWidget *web_view = webkit_web_view_new_with_settings(settings);
+    g_signal_connect(web_view, "load-failed", G_CALLBACK(on_load_failed), NULL);
     
     // Disable stale disk caching so user always sees the latest live UI
     WebKitWebContext *web_context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(web_view));
@@ -313,7 +317,7 @@ int main(int argc, char *argv[]) {
         webkit_web_context_clear_cache(web_context);
     }
 
-    GdkRGBA bg_color = { 0.0, 0.0, 0.0, 1.0 };
+    GdkRGBA bg_color = { 0.05, 0.07, 0.09, 1.0 };
     webkit_web_view_set_background_color(WEBKIT_WEB_VIEW(web_view), &bg_color);
 
     webkit_web_view_load_uri(WEBKIT_WEB_VIEW(web_view), server_url);
