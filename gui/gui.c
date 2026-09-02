@@ -249,6 +249,7 @@ static gboolean on_window_delete(GtkWidget *widget, GdkEvent *event, gpointer da
 int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
+    setenv("WEBKIT_DISABLE_COMPOSITING_MODE", "1", 1);
 
     gtk_init(&argc, &argv);
 
@@ -294,8 +295,9 @@ int main(int argc, char *argv[]) {
 
     WebKitSettings *settings = webkit_settings_new();
     webkit_settings_set_enable_developer_extras(settings, TRUE);
-    webkit_settings_set_enable_webgl(settings, TRUE);
-    webkit_settings_set_enable_accelerated_2d_canvas(settings, TRUE);
+    webkit_settings_set_enable_webgl(settings, FALSE);
+    webkit_settings_set_enable_accelerated_2d_canvas(settings, FALSE);
+    webkit_settings_set_hardware_acceleration_policy(settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
     webkit_settings_set_enable_smooth_scrolling(settings, TRUE);
     webkit_settings_set_enable_javascript_markup(settings, TRUE);
     webkit_settings_set_enable_media_stream(settings, TRUE);
