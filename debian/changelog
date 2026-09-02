@@ -1,3 +1,15 @@
+hotspot-share (2.0.3-1) unstable; urgency=medium
+
+  * Resolved Snap package duplicate application entry in GNOME Shell / Ubuntu App Center.
+  * Fixed missing Exec field on Snap desktop launcher.
+  * Compiled native WebKitGTK wrapper inside container to resolve GLIBC version dependency.
+  * Published release directly to Canonical Snap Store latest/stable and latest/candidate channels.
+  * Replaced emoji glyphs with minimalist monochrome SVG vector line icons.
+  * Suppressed onboarding tour modal on mobile phone interfaces.
+  * Added connection guards preventing transmission when no phone is connected.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 00:50:00 +0300
+
 hotspot-share (2.0.2-1) unstable; urgency=medium
 
   * Added AirDrop-style active beam notification engine for mobile devices.

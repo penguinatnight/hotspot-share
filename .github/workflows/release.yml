@@ -53,7 +53,7 @@ jobs:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
         with:
           snap: ${{ steps.snapcraft.outputs.snap }}
-          release: candidate
+          release: stable,candidate
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
