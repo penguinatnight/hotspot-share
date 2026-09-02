@@ -18,10 +18,13 @@
   <div class="tabs-container">
     <div class="slider-indicator" id="sliderIndicator"></div>
     <button class="tab-btn active" id="btn-upload" onclick="switchTab('upload')">Upload</button>
-    <button class="tab-btn" id="btn-files" onclick="switchTab('files')">Files</button>
+    <button class="tab-btn" id="btn-files" onclick="switchTab('files')">Files <span class="tab-badge" id="filesTabBadge" style="display:none;">0</span></button>
     <button class="tab-btn" id="btn-clip" onclick="switchTab('clip')">Clipboard</button>
   </div>
   <div style="display:flex;gap:8px;align-items:center;">
+    <button class="btn-theme" onclick="openOnboarding(true)" id="tourBtn" title="Product Tour & Feature Guide">
+      <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
     <button class="btn-theme" onclick="manualRefresh()" id="refreshBtn" title="Refresh status, files & clipboard">
       <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
@@ -66,16 +69,19 @@
     </div>
   </section>
 
+  <!-- INCOMING AIRDROP / BEAM PROMPT FOR MOBILE -->
+  <section class="incoming-beams-container" id="incomingBeamsContainer" style="display:none;"></section>
+
   <!-- TAB 1: UPLOAD -->
   <section id="tab-upload" class="tab-content active">
     <div class="dropzone" id="dropzone">
       <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-      <h3>Drop files or folders here</h3>
-      <p>Direct Wi-Fi 6 Transfer &bull; Saves to Desktop/from-phone</p>
+      <h3 id="dropzoneTitle">Drop files or folders here</h3>
+      <p id="dropzoneSubtitle">Direct Wi-Fi 6 Transfer &bull; Instant Peer-to-Peer Beam</p>
       
       <div class="action-buttons">
-        <button type="button" class="btn-primary" onclick="document.getElementById('fileInput').click()">Select Files</button>
-        <button type="button" class="btn-secondary" onclick="document.getElementById('folderInput').click()">Select Folder</button>
+        <button type="button" class="btn-primary" id="btnSelectFiles" onclick="document.getElementById('fileInput').click()">Select Files</button>
+        <button type="button" class="btn-secondary" id="btnSelectFolder" onclick="document.getElementById('folderInput').click()">Select Folder</button>
       </div>
       <input type="file" id="fileInput" multiple>
       <input type="file" id="folderInput" webkitdirectory directory multiple>
@@ -188,6 +194,136 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- ONBOARDING TOUR MODAL -->
+<div class="onboarding-overlay" id="onboardingOverlay" style="display:none;" onclick="handleOnboardingBackdropClick(event)">
+  <div class="onboarding-card" onclick="event.stopPropagation()">
+    <button class="onboarding-skip" onclick="finishOnboarding()" title="Skip product tour">Skip</button>
+
+    <!-- Slide 0: Welcome & AirDrop for Linux -->
+    <div class="onboarding-slide active" id="onboard-slide-0">
+      <div class="anim-container">
+        <div class="beam-demo">
+          <div class="demo-device pc-device">
+            <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+            <span class="demo-device-caption">Linux PC</span>
+          </div>
+          <div class="beam-pulses">
+            <div class="pulse-line"></div>
+            <div class="pulse-dot"></div>
+            <div class="beam-packet">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            </div>
+          </div>
+          <div class="demo-device phone-device">
+            <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+            <span class="demo-device-caption">Phone</span>
+          </div>
+        </div>
+      </div>
+      <h2>AirDrop for Linux</h2>
+      <p class="onboard-tagline">High-speed local peer-to-peer file sharing and clipboard synchronization between Linux desktops and mobile phones.</p>
+      <div class="onboard-pills">
+        <span class="pill-badge">Zero Phone Apps</span>
+        <span class="pill-badge">Gigabit Wi-Fi 6</span>
+        <span class="pill-badge">iOS & Android</span>
+      </div>
+    </div>
+
+    <!-- Slide 1: Privacy, Zero Cloud, No Login -->
+    <div class="onboarding-slide" id="onboard-slide-1">
+      <div class="anim-container">
+        <div class="shield-demo">
+          <div class="shield-circle">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+          </div>
+          <div class="shield-glow-ring"></div>
+        </div>
+      </div>
+      <h2>100% Private & Open Source</h2>
+      <p class="onboard-tagline">Your personal files, documents, and clipboard never touch third-party cloud servers, external trackers, or the internet.</p>
+      <div class="privacy-features">
+        <div class="pf-item">
+          <span class="pf-icon">🔓</span>
+          <div><b>No Login or Accounts:</b> Instant pairing with zero sign-ups or credentials.</div>
+        </div>
+        <div class="pf-item">
+          <span class="pf-icon">🛡️</span>
+          <div><b>Zero Data Retention:</b> Direct local network streaming with zero cloud storage.</div>
+        </div>
+        <div class="pf-item">
+          <span class="pf-icon">📜</span>
+          <div><b>100% Free & Open Source:</b> Licensed under GPL-3.0 with complete code transparency.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 2: Camera QR Pairing -->
+    <div class="onboarding-slide" id="onboard-slide-2">
+      <div class="anim-container">
+        <div class="scan-demo">
+          <div class="scan-frame">
+            <div class="corner-tl"></div><div class="corner-tr"></div>
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <div class="scan-qr-sample">
+              <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h2v2h-2v-2zm2 2h3v3h-3v-3zm-5 1h2v2h-2v-2z"/></svg>
+            </div>
+            <div class="scan-laser"></div>
+          </div>
+        </div>
+      </div>
+      <h2>Instant Camera QR Pairing</h2>
+      <p class="onboard-tagline">Connect phone to your PC's Wi-Fi hotspot or local network, point your phone camera at the QR code, and tap the link.</p>
+      <div class="onboard-steps-list">
+        <div class="step-badge">1. Connect Wi-Fi</div>
+        <div class="step-badge">2. Scan QR</div>
+        <div class="step-badge">3. Transfer Instantly</div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Clipboard Sync & Folder Transfers -->
+    <div class="onboarding-slide" id="onboard-slide-3">
+      <div class="anim-container">
+        <div class="clipboard-demo">
+          <div class="clip-card-sample">
+            <div class="clip-header-sample">
+              <span class="clip-tag">Desktop Clipboard</span>
+              <span class="clip-shortcut">Ctrl+V Ready</span>
+            </div>
+            <div class="clip-content-sample">
+              <code>console.log("AirDrop for Linux!");</code>
+            </div>
+          </div>
+          <div class="clip-arrow">⇄</div>
+          <div class="phone-clip-preview">
+            <span>Mobile Clipboard Synced</span>
+          </div>
+        </div>
+      </div>
+      <h2>Clipboard & Folder Transfers</h2>
+      <p class="onboard-tagline">Copy photos, text, or code on Linux and paste on phone — or vice-versa. Download whole nested directory trees as ZIP archives on-the-fly.</p>
+      <div class="onboard-pills">
+        <span class="pill-badge">Image & Text Clipboard</span>
+        <span class="pill-badge">Folder ZIP on-the-Fly</span>
+        <span class="pill-badge">Resumable Chunk Engine</span>
+      </div>
+    </div>
+
+    <!-- Onboarding Footer Controls -->
+    <div class="onboarding-footer">
+      <div class="slide-dots" id="slideDots">
+        <span class="dot active" onclick="goToOnboardSlide(0)"></span>
+        <span class="dot" onclick="goToOnboardSlide(1)"></span>
+        <span class="dot" onclick="goToOnboardSlide(2)"></span>
+        <span class="dot" onclick="goToOnboardSlide(3)"></span>
+      </div>
+      <div class="onboard-nav-buttons">
+        <button type="button" class="btn-onboard-back" id="onboardBackBtn" onclick="prevOnboardSlide()" style="display:none;">Back</button>
+        <button type="button" class="btn-onboard-next" id="onboardNextBtn" onclick="nextOnboardSlide()">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="/app.js"></script>
 </body>

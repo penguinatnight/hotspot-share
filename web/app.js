@@ -427,12 +427,30 @@ async function sendHeartbeatAndPollStatus() {
           qrCard.style.display = 'flex';
         }
       }
+
+      const btnFiles = document.getElementById('btnSelectFiles');
+      const btnFolder = document.getElementById('btnSelectFolder');
+      const dzTitle = document.getElementById('dropzoneTitle');
+      const dzSub = document.getElementById('dropzoneSubtitle');
+      if (btnFiles) btnFiles.innerText = 'Send Files to Phone';
+      if (btnFolder) btnFolder.innerText = 'Send Folder to Phone';
+      if (dzTitle) dzTitle.innerText = 'Drop files or folders to send to phone';
+      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Beam • Phone receives instant download';
     } else {
       // Phone View
       beacon.className = 'beacon-dot connected';
       const myDisplayName = cachedNickname || cachedCustomModel || (hw.model !== 'Linux Desktop' && hw.model !== 'Windows PC' && hw.model !== 'Apple Mac' ? hw.model : '') || 'Phone';
       deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
       qrCard.style.display = 'none';
+
+      const btnFiles = document.getElementById('btnSelectFiles');
+      const btnFolder = document.getElementById('btnSelectFolder');
+      const dzTitle = document.getElementById('dropzoneTitle');
+      const dzSub = document.getElementById('dropzoneSubtitle');
+      if (btnFiles) btnFiles.innerText = 'Send Files to PC';
+      if (btnFolder) btnFolder.innerText = 'Send Photos / Folder to PC';
+      if (dzTitle) dzTitle.innerText = 'Send files or photos to PC';
+      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Transfer • Saves to PC Desktop/from-phone';
 
       if (phoneStorage && phoneStorage.total_bytes > 0) {
         diskText.innerText = 'Phone: ' + phoneStorage.free_str + ' free | PC: ' + (data.pc_disk ? data.pc_disk.free_str + ' free' : '');
@@ -450,6 +468,12 @@ async function sendHeartbeatAndPollStatus() {
     }
 
     syncIncomingServerTransfers(data.transfers);
+    syncIncomingBeams(data.beams);
+
+    if (filesNeedRefresh && activeTabId === 'files') {
+      filesNeedRefresh = false;
+      loadFiles();
+    }
 
   } catch (err) {}
 }
@@ -584,12 +608,25 @@ function syncIncomingServerTransfers(transfers) {
   } else if (recent.length > 0) {
     const r = recent[0];
     const filename = r.name || r.filename || 'file';
-    const sender = r.sender || r.device_name || 'Phone';
+    const sender = r.sender || r.device_name || 'PC';
     const isCompleted = r.status === 'completed' || r.status === 'done';
+    const isLocal = isLocalClient;
     summaryBanner.style.display = 'flex';
-    document.getElementById('summaryCount').innerText = isCompleted ? `Received from ${sender}: ${filename}` : `Transfer ${r.status}`;
+
+    if (isCompleted) {
+      if (!isLocal) {
+        document.getElementById('summaryCount').innerText = `${sender} sent: ${filename}`;
+        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone ⬇</button>`;
+      } else {
+        document.getElementById('summaryCount').innerText = `Received from ${sender}: ${filename}`;
+        document.getElementById('summarySpeed').innerText = 'Completed';
+      }
+    } else {
+      document.getElementById('summaryCount').innerText = `Transfer ${r.status}`;
+      document.getElementById('summarySpeed').innerText = r.status === 'cancelled' ? 'Cancelled' : 'Failed';
+    }
+
     document.getElementById('summaryProgressFill').style.width = isCompleted ? '100%' : '0%';
-    document.getElementById('summarySpeed').innerText = isCompleted ? 'Completed' : (r.status === 'cancelled' ? 'Cancelled' : 'Failed');
     document.getElementById('summaryEta').innerText = '';
     document.getElementById('summaryCancelBtn').style.display = 'none';
 
@@ -603,14 +640,23 @@ function syncIncomingServerTransfers(transfers) {
         }
         const infoEl = document.getElementById(`server-${r.id}-info`);
         if (infoEl) {
-          infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
+          if (isCompleted && !isLocal) {
+            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone ⬇</button>`;
+          } else {
+            infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
+          }
         }
       }
     }
 
     if (activeServerTransferId) {
       activeServerTransferId = null;
-      if (activeTabId === 'files') loadFiles();
+      filesNeedRefresh = true;
+      if (activeTabId === 'files') {
+        loadFiles();
+      } else {
+        updateFilesBadge(1);
+      }
     }
   }
 }
@@ -621,6 +667,169 @@ function cancelServerTransfer(transferId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: transferId })
   }).catch(() => {});
+}
+
+// AIRDROP BEAMS & DIRECT MOBILE DOWNLOAD ENGINE
+let dismissedBeams = new Set();
+let filesNeedRefresh = false;
+
+function triggerDownload(url, filename, beamId) {
+  const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
+  const fullUrl = url + (url.includes('?') ? tokenQuery : `?${tokenQuery.slice(1)}`);
+  const a = document.createElement('a');
+  a.href = fullUrl;
+  a.download = filename || 'download';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    try { document.body.removeChild(a); } catch (e) {}
+  }, 300);
+
+  showToast(`Downloading ${filename} to Phone...`);
+
+  if (beamId) {
+    dismissBeam(beamId);
+  }
+}
+
+function syncIncomingBeams(beams) {
+  const container = document.getElementById('incomingBeamsContainer');
+  if (!container) return;
+
+  if (!beams || beams.length === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  const activeBeams = beams.filter(b => !dismissedBeams.has(b.id));
+  if (activeBeams.length === 0) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  container.style.display = 'flex';
+  container.innerHTML = activeBeams.map(b => {
+    const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
+    const downloadUrl = `/api/download?path=${encodeURIComponent(b.path)}${tokenQuery}`;
+    const isDir = b.is_dir;
+    const actionLabel = isDir ? 'Save ZIP ⬇' : 'Save to Phone ⬇';
+    const fileDesc = isDir ? `Folder (${formatBytes(b.size)})` : formatBytes(b.size);
+
+    return `
+      <div class="beam-card" id="beam-${b.id}">
+        <div class="beam-card-left">
+          <div class="beam-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          </div>
+          <div class="beam-card-meta">
+            <div class="beam-card-title">AirDrop from ${escapeHtml(b.sender)}</div>
+            <div class="beam-card-name" title="${escapeHtml(b.name)}">${escapeHtml(b.name)} (${fileDesc})</div>
+          </div>
+        </div>
+        <div class="beam-card-actions">
+          <button type="button" class="btn-beam-save" onclick="triggerDownload('${downloadUrl}', '${escapeHtml(b.name)}${isDir ? '.zip' : ''}', '${b.id}')">
+            ${actionLabel}
+          </button>
+          <button type="button" class="btn-beam-dismiss" onclick="dismissBeam('${b.id}')" title="Dismiss">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  updateFilesBadge(activeBeams.length);
+}
+
+function dismissBeam(beamId) {
+  dismissedBeams.add(beamId);
+  const card = document.getElementById(`beam-${beamId}`);
+  if (card) card.remove();
+  const container = document.getElementById('incomingBeamsContainer');
+  if (container && container.children.length === 0) {
+    container.style.display = 'none';
+  }
+  fetch(`/api/dismiss_beam?id=${encodeURIComponent(beamId)}`).catch(() => {});
+}
+
+function updateFilesBadge(count) {
+  const badge = document.getElementById('filesTabBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.innerText = count;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ONBOARDING TOUR SYSTEM
+let currentOnboardSlide = 0;
+const totalOnboardSlides = 4;
+
+function openOnboarding(force = false) {
+  currentOnboardSlide = 0;
+  updateOnboardSlideUI();
+  const overlay = document.getElementById('onboardingOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function finishOnboarding() {
+  localStorage.setItem('hotspot_onboarded', 'true');
+  const overlay = document.getElementById('onboardingOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function handleOnboardingBackdropClick(e) {
+  finishOnboarding();
+}
+
+function updateOnboardSlideUI() {
+  for (let i = 0; i < totalOnboardSlides; i++) {
+    const slide = document.getElementById(`onboard-slide-${i}`);
+    if (slide) slide.classList.toggle('active', i === currentOnboardSlide);
+  }
+  const dots = document.querySelectorAll('#slideDots .dot');
+  dots.forEach((d, idx) => {
+    d.classList.toggle('active', idx === currentOnboardSlide);
+  });
+
+  const backBtn = document.getElementById('onboardBackBtn');
+  const nextBtn = document.getElementById('onboardNextBtn');
+  if (backBtn) {
+    backBtn.style.display = currentOnboardSlide === 0 ? 'none' : 'inline-block';
+  }
+  if (nextBtn) {
+    if (currentOnboardSlide === totalOnboardSlides - 1) {
+      nextBtn.innerHTML = 'Get Started 🚀';
+    } else {
+      nextBtn.innerHTML = 'Next &rarr;';
+    }
+  }
+}
+
+function nextOnboardSlide() {
+  if (currentOnboardSlide < totalOnboardSlides - 1) {
+    currentOnboardSlide++;
+    updateOnboardSlideUI();
+  } else {
+    finishOnboarding();
+  }
+}
+
+function prevOnboardSlide() {
+  if (currentOnboardSlide > 0) {
+    currentOnboardSlide--;
+    updateOnboardSlideUI();
+  }
+}
+
+function goToOnboardSlide(idx) {
+  if (idx >= 0 && idx < totalOnboardSlides) {
+    currentOnboardSlide = idx;
+    updateOnboardSlideUI();
+  }
 }
 
 // Background Keepalive (Screen WakeLock & Silent Audio Channel for Mobile Backgrounding)
@@ -699,7 +908,11 @@ function switchTab(tabId) {
 
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + tabId).classList.add('active');
-  if (tabId === 'files') loadFiles();
+  if (tabId === 'files') {
+    updateFilesBadge(0);
+    filesNeedRefresh = false;
+    loadFiles();
+  }
   if (tabId === 'clip') loadClip();
 }
 
@@ -1670,5 +1883,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
+
+  if (!localStorage.getItem('hotspot_onboarded')) {
+    setTimeout(() => openOnboarding(false), 500);
   }
 });

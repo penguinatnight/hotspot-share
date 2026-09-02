@@ -108,6 +108,54 @@ class Stats:
             cls.total_downloads += 1
             cls.total_downloaded_bytes += size_bytes
 
+class BeamTracker:
+    beams = []
+    dismissed = set()
+    _lock = threading.Lock()
+
+    @classmethod
+    def add_beam(cls, beam_id, name, rel_path, size, is_dir, sender_name, sender_ip):
+        with cls._lock:
+            # If beam for this top-level path already exists (e.g. chunked or multi-file folder upload), update size
+            for b in cls.beams:
+                if b['path'] == rel_path:
+                    b['size'] = max(b['size'], size)
+                    b['time'] = time.time()
+                    return
+            if len(cls.beams) >= 30:
+                cls.beams.pop(0)
+            cls.beams.append({
+                'id': beam_id,
+                'name': name,
+                'path': rel_path,
+                'size': size,
+                'is_dir': is_dir,
+                'sender': sender_name,
+                'sender_ip': sender_ip,
+                'time': time.time()
+            })
+
+    @classmethod
+    def get_active_beams(cls, client_ip):
+        with cls._lock:
+            now = time.time()
+            cls.beams = [b for b in cls.beams if now - b['time'] < 600]
+            res = []
+            for b in cls.beams:
+                if b['id'] not in cls.dismissed and (b['id'], client_ip) not in cls.dismissed:
+                    if is_local_ip(b['sender_ip']) and not is_local_ip(client_ip):
+                        res.append(b)
+                    elif b['sender_ip'] != client_ip:
+                        res.append(b)
+            return res
+
+    @classmethod
+    def dismiss_beam(cls, beam_id, client_ip=None):
+        with cls._lock:
+            cls.dismissed.add(beam_id)
+            if client_ip:
+                cls.dismissed.add((beam_id, client_ip))
+
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
@@ -342,8 +390,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
                 'pin_code': AuthManager.pin_code if self.is_client_local() else "",
                 'hotspot_active': hotspot_info.get('active', False),
-                'hotspot_name': hotspot_info.get('name', '')
+                'hotspot_name': hotspot_info.get('name', ''),
+                'beams': BeamTracker.get_active_beams(self.client_address[0])
             })
+            return
+
+        elif path == '/api/dismiss_beam':
+            beam_id = query.get('id', [''])[0]
+            if beam_id:
+                BeamTracker.dismiss_beam(beam_id, self.client_address[0])
+            self.send_json({'status': 'ok'})
             return
 
         # Authenticated endpoints check
@@ -814,7 +870,23 @@ class HotspotHandler(BaseHTTPRequestHandler):
             t_stamp = time.strftime('%H:%M:%S')
             print(f" \033[90m{t_stamp}\033[0m  \033[32m[UPLOAD]    \033[0m {display_name} \033[90m({format_size(offset + written)})\033[0m \033[1;37m{speed_mb:.1f} MB/s\033[0m")
 
-            self.send_json({'status': 'ok', 'filename': display_name, 'size': offset + written})
+            rel_path_to_base = str(target_path.relative_to(base))
+            top_level = clean_target_dir.split('/')[0] if target_dir else (clean_rel.split('/')[0] if '/' in clean_rel else '')
+            is_folder = bool(top_level)
+            beam_name = top_level if is_folder else os.path.basename(clean_rel)
+            beam_path = top_level if is_folder else rel_path_to_base
+
+            BeamTracker.add_beam(
+                beam_id=transfer_id,
+                name=beam_name,
+                rel_path=beam_path,
+                size=offset + written,
+                is_dir=is_folder,
+                sender_name=sender_name,
+                sender_ip=client_ip
+            )
+
+            self.send_json({'status': 'ok', 'filename': display_name, 'size': offset + written, 'path': rel_path_to_base})
             return
 
         elif path == '/api/mkdir':
