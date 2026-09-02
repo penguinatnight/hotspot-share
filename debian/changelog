@@ -1,3 +1,11 @@
+hotspot-share (2.0.6-1) unstable; urgency=medium
+
+  * Set NO_PROXY on WebKitWebContext to bypass portal proxy resolver in Snap.
+  * Added GIO_USE_NETWORK_MONITOR=base and NO_AT_BRIDGE=1 to resolve portal sandbox denials.
+  * Added network-status and network-observe plugs to snapcraft.yaml.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:40:00 +0300
+
 hotspot-share (2.0.5-1) unstable; urgency=medium
 
   * Resolved WebKitGTK Wayland blank frame by allowing hardware acceleration on demand.
