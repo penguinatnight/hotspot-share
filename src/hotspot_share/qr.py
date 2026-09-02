@@ -261,7 +261,7 @@ def get_svg_qr(text, ec_level='M'):
             if matrix[r][c] == 1:
                 paths.append(f"M{c + pad},{r + pad}h1v1h-1z")
     path_d = "".join(paths)
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total} {total}" shape-rendering="crispEdges" class="qr-svg"><rect width="100%" height="100%" fill="white"/><path d="{path_d}" fill="black"/></svg>'
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total} {total}" width="108" height="108" style="width:108px;height:108px;display:block;" shape-rendering="crispEdges" class="qr-svg"><rect x="0" y="0" width="{total}" height="{total}" fill="#ffffff"/><path d="{path_d}" fill="#000000"/></svg>'
 
 def escape_wifi_str(s: str) -> str:
     """Escapes special characters in Wi-Fi SSID and password according to ZXing standard."""

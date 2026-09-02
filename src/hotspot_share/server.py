@@ -20,7 +20,7 @@ from .config import (
     get_web_dir, get_icon_file, get_default_share_dir,
     write_runtime_info, clear_runtime_info
 )
-from .qr import get_svg_qr, get_terminal_qr, get_wifi_qr_text
+from .qr import get_svg_qr, get_terminal_qr, get_wifi_qr_text, generate_qr_matrix
 from .devices import (
     DeviceTracker, get_pc_device_name, is_local_ip,
     save_device_name, load_saved_devices
@@ -299,6 +299,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
             phones = DeviceTracker.get_connected_phones()
             disk = get_disk_stats(self.shared_dir)
             qr_svg = get_svg_qr(server_url)
+            qr_matrix = generate_qr_matrix(server_url)
             transfers = TransferTracker.get_transfers_state()
             hotspot_info = get_active_hotspot()
 
@@ -313,6 +314,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 'cancel_all_time': TransferTracker.last_cancel_all_time,
                 'server_url': server_url,
                 'qr_svg': qr_svg,
+                'qr_matrix': qr_matrix,
                 'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
                 'pin_code': AuthManager.pin_code if self.is_client_local() else "",
                 'hotspot_active': hotspot_info.get('active', False),
