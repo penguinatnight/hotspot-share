@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-22.04
@@ -33,7 +36,7 @@ jobs:
           mv ../hotspot-share_*.deb dist/ || true
 
       - name: Build Snap Package
-        uses: canonical/action-snapcraft@v2
+        uses: snapcore/action-build@v1
         id: snapcraft
 
       - name: Copy Snap Artifact
@@ -42,7 +45,7 @@ jobs:
           cp *.snap dist/ 2>/dev/null || true
 
       - name: Publish to Canonical Snap Store
-        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        if: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS != '' }}
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
