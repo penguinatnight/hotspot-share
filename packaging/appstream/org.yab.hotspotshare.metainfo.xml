@@ -41,8 +41,16 @@
     <keyword>hotspot</keyword>
     <keyword>wifi</keyword>
     <keyword>airdrop</keyword>
+    <keyword>quickshare</keyword>
+    <keyword>nearbyshare</keyword>
+    <keyword>sendanywhere</keyword>
     <keyword>localsend</keyword>
     <keyword>clipboard</keyword>
+    <keyword>android</keyword>
+    <keyword>iphone</keyword>
+    <keyword>ios</keyword>
+    <keyword>p2p</keyword>
+    <keyword>lan</keyword>
   </keywords>
   <icon type="stock">hotspot-share</icon>
   <icon type="remote">https://raw.githubusercontent.com/penguinatnight/hotspot-share/main/assets/icons/hicolor/512x512/apps/hotspot-share.png</icon>

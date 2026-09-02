@@ -30,6 +30,10 @@ Instead of forcing users to install mobile apps or upload private files to third
 
 - **⚡ High-Throughput Chunked Transfers**: Tuned 8MB socket buffers for Wi-Fi 6 speeds (40–90+ MB/s over 5GHz Hotspots).
 - **🔄 Auto-Resumable Uploads & Downloads**: Interrupted mobile uploads automatically resume from the exact byte offset.
+- **📁 Smart Batch Conflict Resolution**: Automatic smart duplicate renaming (`file (1).ext`), overwrite, or skip modes.
+- **📱 True PWA (Progressive Web App)**: Installable directly to mobile home screen with offline application shell and standalone full-screen experience (`manifest.json` + Service Worker).
+- **📡 Zero-Config mDNS & Local Beacon Discovery**: Peer auto-discovery over UDP beacon with `.local` domain resolution (`http://<hostname>.local:8080`).
+- **🛡️ Ephemeral TLS / HTTPS**: Optional on-the-fly self-signed TLS/HTTPS encryption (`--ssl`) unlocking mobile camera QR scanning and secure context.
 - **📋 Bi-Directional Clipboard Sync**:
   - Send text or raw images (PNG/JPEG) from mobile to Linux clipboard for immediate `Ctrl+V` pasting in Discord, GIMP, Slack, LibreOffice, or terminal.
   - Pull text or images copied on Linux directly to mobile.
@@ -40,7 +44,6 @@ Instead of forcing users to install mobile apps or upload private files to third
   - System Tray / AppIndicator status menu with background minimizing.
   - Native Desktop Notifications via `libnotify` / Desktop Portal for incoming transfers.
   - Nautilus / Nemo right-click file context menu: *"Send via Hotspot Share"*.
-- **📱 Zero Phone App Installation (PWA)**: Mobile client is a Progressive Web App (PWA) with responsive dark/light glassmorphic UI.
 
 ---
 
@@ -131,6 +134,9 @@ hotspot-share -p 9000 -d ~/MySharedFiles
 
 # Enable 4-digit PIN pairing security
 hotspot-share --auth
+
+# Enable ephemeral TLS/HTTPS encryption
+hotspot-share --ssl
 
 # Automatically create a Wi-Fi hotspot named "MyLaptopHotspot"
 hotspot-share --hotspot MyLaptopHotspot

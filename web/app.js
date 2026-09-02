@@ -1202,7 +1202,7 @@ function uploadTaskChunk(task, offset) {
   };
 
   const sliceBlob = offset > 0 ? task.file.slice(offset) : task.file;
-  let uploadUrl = `/api/upload?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&offset=${offset}&totalSize=${task.file.size}`;
+  let uploadUrl = `/api/upload?id=${encodeURIComponent(task.cardId)}&name=${encodeURIComponent(task.file.name)}&relPath=${encodeURIComponent(task.relPath)}&targetDir=${encodeURIComponent(currentPath)}&offset=${offset}&totalSize=${task.file.size}&conflict=rename`;
   if (authToken) {
     uploadUrl += `&token=${encodeURIComponent(authToken)}`;
   }
@@ -1630,7 +1630,7 @@ async function saveClipImageToSharedFolder() {
     const blob = await res.blob();
     const filename = `clip_image_${Date.now()}.png`;
     
-    const uploadUrl = `/api/upload?name=${encodeURIComponent(filename)}&relPath=${encodeURIComponent(filename)}`;
+    let uploadUrl = `/api/upload?name=${encodeURIComponent(filename)}&relPath=${encodeURIComponent(filename)}&conflict=rename`;
     const uploadRes = await fetch(uploadUrl, { method: 'POST', body: blob });
     if (uploadRes.ok) {
       showToast(`Saved to Desktop/from-phone/${filename}`);
@@ -1667,4 +1667,8 @@ window.addEventListener('DOMContentLoaded', () => {
   updateSliderPosition('upload');
   sendHeartbeatAndPollStatus();
   setInterval(sendHeartbeatAndPollStatus, 2000);
+
+  if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
 });

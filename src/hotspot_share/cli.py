@@ -38,6 +38,7 @@ def main():
     )
     parser.add_argument('-p', '--port', type=int, default=8080, help="Port to listen on (default: 8080)")
     parser.add_argument('-d', '--dir', type=str, default=default_dir, help=f"Directory for shared files (default: {default_dir})")
+    parser.add_argument('--ssl', '--https', dest='ssl', action='store_true', help="Enable ephemeral self-signed TLS/HTTPS encryption")
     parser.add_argument('--no-qr', action='store_true', help="Do not display QR code in terminal")
     parser.add_argument('--auth', action='store_true', help="Enable 4-digit PIN pairing authentication")
     parser.add_argument('--pin', type=str, default="", help="Set custom 4-digit PIN for pairing")
@@ -79,15 +80,36 @@ def main():
         print(f"Error: Could not bind to port {args.port} or subsequent ports.")
         sys.exit(1)
 
+    if args.ssl:
+        try:
+            from .crypto_ssl import create_ssl_context
+            ssl_ctx = create_ssl_context()
+            server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
+            HotspotHandler.is_ssl = True
+            proto = "https"
+        except Exception as e:
+            print(f"Warning: Could not initialize TLS/HTTPS ({e}). Falling back to HTTP.")
+            HotspotHandler.is_ssl = False
+            proto = "http"
+    else:
+        HotspotHandler.is_ssl = False
+        proto = "http"
+
     ips = get_local_ips()
     primary_ip = ips[0]
     HotspotHandler.primary_ip = primary_ip
     HotspotHandler.server_port = port
-    phone_url = f"http://{primary_ip}:{port}"
+    phone_url = f"{proto}://{primary_ip}:{port}"
+    import socket
+    local_domain_url = f"{proto}://{socket.gethostname()}.local:{port}"
+
+    from .discovery import start_discovery_beacon, stop_discovery_beacon
+    start_discovery_beacon(server_url=phone_url, pc_name=get_pc_device_name(), pin_required=bool(pin))
 
     write_runtime_info(port=port, primary_ip=primary_ip, url=phone_url, token=pin, pid=os.getpid())
 
     def cleanup(signum=None, frame=None):
+        stop_discovery_beacon()
         clear_runtime_info()
         try:
             server.server_close()
@@ -106,6 +128,7 @@ def main():
     print_box_line(f"  \033[1;37mHOTSPOT SHARE v{__version__}\033[0m", "\033[32;1m[RUNNING]\033[0m  ", W)
     print("\033[1;37m├" + "─" * W + "┤\033[0m")
     print_box_line(f"  \033[1mWeb Interface\033[0m : \033[1;36m{phone_url}\033[0m", "", W)
+    print_box_line(f"  \033[1mLocal Domain\033[0m  : \033[36m{local_domain_url}\033[0m", "", W)
     print_box_line(f"  \033[1mSave Location\033[0m : \033[33m{str(shared_path)}\033[0m", "", W)
     print_box_line(f"  \033[1mDisk Space\033[0m    : \033[37m{disk_str}\033[0m", "", W)
     print_box_line(f"  \033[1mLocal IP\033[0m      : \033[37m{primary_ip} (Port {port})\033[0m", "", W)
