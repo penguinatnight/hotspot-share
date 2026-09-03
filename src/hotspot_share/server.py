@@ -15,6 +15,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 import threading
 import binascii
+import re
 
 from .config import (
     get_web_dir, get_icon_file, get_default_share_dir,
@@ -226,7 +227,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
         token = ''
         if auth_header.startswith('Bearer '):
             token = auth_header[7:].strip()
-        elif query:
+        if not token:
+            token = self.headers.get('X-Auth-Token', '').strip()
+        if not token and query:
             token = query.get('token', [''])[0].strip()
         client_ip = self.client_address[0]
         return AuthManager.is_authorized(client_ip, token)
@@ -270,13 +273,20 @@ class HotspotHandler(BaseHTTPRequestHandler):
             icon_b64 = ""
             if icon_png and icon_png.is_file():
                 icon_b64 = base64.b64encode(icon_png.read_bytes()).decode('ascii')
-            content = content.replace('__ICON_BASE64__', icon_b64)
+            is_auth_required = AuthManager.auth_enabled and not self.is_client_local()
+            if is_auth_required and self.check_auth(query):
+                is_auth_required = False
+
+            auth_attr = ' data-auth-locked="true"' if is_auth_required else ''
+            content = content.replace('__AUTH_LOCKED__', auth_attr)
 
             body = content.encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.send_header('Accept-CH', 'Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version')
             self.send_header('Permissions-Policy', 'ch-ua-model=*, ch-ua-platform=*')
             self.end_headers()
@@ -290,7 +300,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/css; charset=utf-8')
                 self.send_header('Content-Length', str(len(data)))
-                self.send_header('Cache-Control', 'public, max-age=3600')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
                 self.end_headers()
                 self.wfile.write(data)
                 return
@@ -302,7 +314,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/javascript; charset=utf-8')
                 self.send_header('Content-Length', str(len(data)))
-                self.send_header('Cache-Control', 'public, max-age=3600')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
                 self.end_headers()
                 self.wfile.write(data)
                 return
@@ -373,6 +387,8 @@ class HotspotHandler(BaseHTTPRequestHandler):
             transfers = TransferTracker.get_transfers_state()
             hotspot_info = get_active_hotspot()
 
+            is_client_authed = self.check_auth(query)
+
             self.send_json({
                 'connected': len(phones) > 0,
                 'is_local_client': self.is_client_local(),
@@ -387,8 +403,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 'is_ssl': getattr(self, 'is_ssl', False),
                 'qr_svg': qr_svg,
                 'qr_matrix': qr_matrix,
-                'auth_required': AuthManager.auth_enabled and not self.is_client_local(),
+                'auth_required': AuthManager.auth_enabled and not self.is_client_local() and not is_client_authed,
                 'auth_enabled': AuthManager.auth_enabled,
+                'is_authenticated': is_client_authed,
                 'pin_code': AuthManager.pin_code if self.is_client_local() else "",
                 'formatted_pin': AuthManager.get_formatted_pin() if self.is_client_local() else "",
                 'hotspot_active': hotspot_info.get('active', False),
@@ -598,6 +615,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
             self.send_json(clip_data)
             return
 
+        elif path == '/api/open-url':
+            url = query.get('url', [''])[0]
+            if url and (url.startswith('https://') or url.startswith('http://') or url.startswith('mailto:')):
+                try:
+                    subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+            self.send_json({'status': 'ok'})
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -612,15 +639,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
             if err:
                 self.send_json({'status': 'error', 'message': err}, status=400)
                 return
-            pin = (data.get('pin') or '').strip()
+            raw_val = (data.get('pin') or '').strip()
+            pin = re.sub(r'[\s\-]+', '', raw_val)
             client_ip = self.client_address[0]
             ok, token_or_reason = AuthManager.verify_pin(pin, client_ip)
             if ok:
                 self.send_json({'status': 'ok', 'token': token_or_reason})
             elif token_or_reason == 'rate-limited':
-                self.send_json({'status': 'error', 'message': 'Too many failed attempts. Locked out for 30s.'}, status=429)
+                self.send_json({'status': 'error', 'message': 'Too many failed attempts. Please wait 30 seconds.'}, status=429)
             else:
-                self.send_json({'status': 'error', 'message': 'Invalid PIN code'}, status=403)
+                self.send_json({'status': 'error', 'message': 'Incorrect PIN code. Please check the code on your PC.'}, status=403)
             return
 
         elif path == '/api/auth/configure':
@@ -642,6 +670,12 @@ class HotspotHandler(BaseHTTPRequestHandler):
             elif action == 'regenerate':
                 pin = AuthManager.regenerate_pin()
                 self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin()})
+            elif action in ('disconnect', 'revoke'):
+                with AuthManager._lock:
+                    pin = AuthManager.regenerate_pin()
+                    DeviceTracker.phones.clear()
+                print(f" \033[90m{t_stamp}\033[0m  \033[33m[DISCONNECT]\033[0m All paired devices revoked & disconnected. New PIN: {AuthManager.get_formatted_pin()}")
+                self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin(), 'disconnected': True})
             elif action == 'set_pin':
                 new_pin = (data.get('pin') or '').strip().replace(' ', '')
                 if len(new_pin) == 8 and new_pin.isdigit():
@@ -650,12 +684,23 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_json({'status': 'error', 'message': 'PIN must be exactly 8 digits'}, status=400)
             else:
-                if AuthManager.auth_enabled:
-                    AuthManager.disable_pin_auth()
-                    self.send_json({'status': 'ok', 'auth_enabled': False, 'pin_code': '', 'formatted_pin': ''})
-                else:
-                    pin = AuthManager.enable_pin_auth()
-                    self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin()})
+                self.send_json({'status': 'error', 'message': 'Unknown action'}, status=400)
+            return
+
+        elif path == '/api/auth/disconnect':
+            # Disconnect all connected devices and revoke sharing code (generate a new 8-digit PIN)
+            with AuthManager._lock:
+                new_pin = AuthManager.regenerate_pin()
+                DeviceTracker.phones.clear()
+            formatted = AuthManager.get_formatted_pin()
+            print(f" \033[90m{t_stamp}\033[0m  \033[33m[DISCONNECT]\033[0m All paired sessions terminated. New PIN: {formatted}")
+            self.send_json({
+                'status': 'ok',
+                'disconnected': True,
+                'pin_code': new_pin if self.is_client_local() else "",
+                'formatted_pin': formatted if self.is_client_local() else "",
+                'message': 'All devices disconnected and PIN revoked. A new 8-digit PIN has been generated.'
+            })
             return
 
         # Check authentication for remaining endpoints
@@ -963,6 +1008,24 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_json({'status': 'ok'})
             else:
                 self.send_error(404, "Item not found")
+            return
+
+        elif path == '/api/clear_all_files':
+            if not self.is_client_local() and os.environ.get("HOTSPOT_ALLOW_REMOTE_DELETE", "0") != "1":
+                self.send_json({'status': 'error', 'message': 'Remote file deletion is disabled by security policy.'}, status=403)
+                return
+            base = self.shared_dir.resolve()
+            if base.is_dir():
+                for item in list(base.iterdir()):
+                    try:
+                        if item.is_symlink() or item.is_file():
+                            item.unlink()
+                        elif item.is_dir():
+                            shutil.rmtree(item)
+                    except Exception:
+                        pass
+                print(f" \033[90m{t_stamp}\033[0m  \033[31m[CLEAR]     \033[0m All shared files cleared")
+            self.send_json({'status': 'ok', 'message': 'All shared files cleared'})
             return
 
         elif path == '/api/clipboard':

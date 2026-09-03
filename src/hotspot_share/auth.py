@@ -4,18 +4,18 @@ import time
 import threading
 
 class AuthManager:
-    auth_enabled = False
-    pin_code = ""
-    authorized_tokens = {}  # token -> {'ip': ip, 'created': timestamp}
-    authorized_ips = {}     # ip -> timestamp of authorization
-    failed_attempts = {}    # ip -> list of failure timestamps
-    _lock = threading.Lock()
-
     DEFAULT_PIN_LENGTH = 8
     TOKEN_TTL = 86400       # 24 hours
     MAX_FAILURES = 5
     FAIL_WINDOW = 60        # 1 minute window
     LOCKOUT_TIME = 30       # 30 seconds lockout
+
+    auth_enabled = True
+    pin_code = "".join(secrets.choice(string.digits) for _ in range(DEFAULT_PIN_LENGTH))
+    authorized_tokens = {}  # token -> {'ip': ip, 'created': timestamp}
+    authorized_ips = {}     # ip -> timestamp of authorization
+    failed_attempts = {}    # ip -> list of failure timestamps
+    _lock = threading.Lock()
 
     @classmethod
     def enable_pin_auth(cls, custom_pin: str = None):

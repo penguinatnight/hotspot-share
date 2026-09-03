@@ -1,3 +1,12 @@
+hotspot-share (2.0.9-1) unstable; urgency=medium
+
+  * Fix About modal actions (GitHub link, re-open tour, close) and add /api/open-url handler.
+  * Update clipboard directionality: "Send Image to Phone" on desktop, "Send Image to PC" on mobile.
+  * Remove AI-slop lock icon from Zero Auto-Sync Privacy banner.
+  * Add session disconnect and 8-digit PIN revocation endpoint.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 23:30:00 +0300
+
 hotspot-share (2.0.8-1) unstable; urgency=medium
 
   * Fix Snap web assets and icon discovery path ($SNAP/usr/share/hotspot-share/web).
@@ -5,7 +14,7 @@ hotspot-share (2.0.8-1) unstable; urgency=medium
   * Add automated test suite coverage for Snap FHS asset resolution and frontend HTTP serving.
   * Include web frontend assets in Python packaging data_files.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 09:10:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 09:10:00 +0300
 
 hotspot-share (2.0.7-1) unstable; urgency=medium
 
@@ -15,7 +24,7 @@ hotspot-share (2.0.7-1) unstable; urgency=medium
   * Added mobile PWA "Install as App" button, banner, and step-by-step installation instructions.
   * Added /api/auth/configure endpoint for host-managed security PIN configuration.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 02:00:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 02:00:00 +0300
 
 hotspot-share (2.0.6-1) unstable; urgency=medium
 
@@ -23,7 +32,7 @@ hotspot-share (2.0.6-1) unstable; urgency=medium
   * Added GIO_USE_NETWORK_MONITOR=base and NO_AT_BRIDGE=1 to resolve portal sandbox denials.
   * Added network-status and network-observe plugs to snapcraft.yaml.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:40:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:40:00 +0300
 
 hotspot-share (2.0.5-1) unstable; urgency=medium
 
@@ -33,7 +42,7 @@ hotspot-share (2.0.5-1) unstable; urgency=medium
   * Added comprehensive SECURITY.md, CONTRIBUTING.md, and CodeQL security scanning.
   * Redesigned documentation with outcome-driven positioning, comparison tables, and compatibility matrix.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:25:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:25:00 +0300
 
 hotspot-share (2.0.4-1) unstable; urgency=medium
 
@@ -41,7 +50,7 @@ hotspot-share (2.0.4-1) unstable; urgency=medium
   * Explicitly configured LD_LIBRARY_PATH prioritizing gnome-platform graphics libraries.
   * Set WEBKIT_DISABLE_COMPOSITING_MODE and disabled WebGL hardware acceleration in GUI wrapper.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 01:10:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:10:00 +0300
 
 hotspot-share (2.0.3-1) unstable; urgency=medium
 
@@ -53,7 +62,7 @@ hotspot-share (2.0.3-1) unstable; urgency=medium
   * Suppressed onboarding tour modal on mobile phone interfaces.
   * Added connection guards preventing transmission when no phone is connected.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 00:50:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 00:50:00 +0300
 
 hotspot-share (2.0.2-1) unstable; urgency=medium
 
@@ -63,7 +72,7 @@ hotspot-share (2.0.2-1) unstable; urgency=medium
   * Added dynamic peer context labels on action buttons ('Send to Phone' vs 'Send to PC').
   * Added Files tab live notification badge and automatic sync upon transfer completion.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 00:05:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 00:05:00 +0300
 
 hotspot-share (2.0.1-1) unstable; urgency=medium
 
@@ -74,7 +83,7 @@ hotspot-share (2.0.1-1) unstable; urgency=medium
   * Fixed WebKitGTK blank QR canvas rendering bug.
   * Updated AppStream metadata with high-resolution screenshots and search SEO.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Wed, 02 Sep 2026 23:45:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Wed, 02 Sep 2026 23:45:00 +0300
 
 hotspot-share (2.0.0-1) unstable; urgency=medium
 
@@ -83,4 +92,4 @@ hotspot-share (2.0.0-1) unstable; urgency=medium
   * Native GTK3/WebKit launcher with system tray and notification support.
   * PIN pairing security and NetworkManager Wi-Fi hotspot management.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Tue, 01 Sep 2026 19:00:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Tue, 01 Sep 2026 19:00:00 +0300

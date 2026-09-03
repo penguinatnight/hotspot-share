@@ -40,8 +40,9 @@ def main():
     parser.add_argument('-d', '--dir', type=str, default=default_dir, help=f"Directory for shared files (default: {default_dir})")
     parser.add_argument('--ssl', '--https', dest='ssl', action='store_true', help="Enable ephemeral self-signed TLS/HTTPS encryption")
     parser.add_argument('--no-qr', action='store_true', help="Do not display QR code in terminal")
-    parser.add_argument('--auth', action='store_true', help="Enable 4-digit PIN pairing authentication")
-    parser.add_argument('--pin', type=str, default="", help="Set custom 4-digit PIN for pairing")
+    parser.add_argument('--no-auth', action='store_true', help="Disable 8-digit PIN pairing authentication")
+    parser.add_argument('--auth', action='store_true', help="Require 8-digit PIN pairing authentication (enabled by default)")
+    parser.add_argument('--pin', type=str, default="", help="Set custom 8-digit PIN for pairing")
     parser.add_argument('--hotspot', nargs='?', const='__auto__', help="Automatically launch Wi-Fi Hotspot with optional SSID")
     parser.add_argument('--no-gui', action='store_true', help="Run in headless terminal daemon mode")
     parser.add_argument('-v', '--version', action='version', version=f"%(prog)s {__version__}")
@@ -52,10 +53,11 @@ def main():
     shared_path.mkdir(parents=True, exist_ok=True)
     HotspotHandler.shared_dir = shared_path
 
-    if args.auth or args.pin:
-        pin = AuthManager.enable_pin_auth(args.pin)
-    else:
+    if args.no_auth:
+        AuthManager.disable_pin_auth()
         pin = ""
+    else:
+        pin = AuthManager.enable_pin_auth(args.pin if args.pin else None)
 
     if args.hotspot:
         ssid = None if args.hotspot == '__auto__' else args.hotspot

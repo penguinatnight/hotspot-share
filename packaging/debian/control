@@ -1,7 +1,7 @@
 Source: hotspot-share
 Section: utils
 Priority: optional
-Maintainer: Hotspot Share Contributors <yeabsrahenok0909@gmail.com>
+Maintainer: Hotspot Share Contributors <penguinatnight1@gmail.com>
 Build-Depends: debhelper-compat (= 13), gcc, pkg-config, libgtk-3-dev, libwebkit2gtk-4.1-dev | libwebkit2gtk-4.0-dev, python3
 Standards-Version: 4.6.2
 Homepage: https://github.com/penguinatnight/hotspot-share

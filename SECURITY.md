@@ -52,7 +52,7 @@ This document provides a transparent, verifiable threat model and security archi
 If you discover a security issue or vulnerability in Hotspot Share:
 
 1. **Do not create a public GitHub issue.**
-2. Email the maintainer directly at: **yeabsrahenok0909@gmail.com** with the subject `[SECURITY] Hotspot Share Vulnerability`.
+2. Email the maintainer directly at: **penguinatnight1@gmail.com** with the subject `[SECURITY] Hotspot Share Vulnerability`.
 3. Include:
    * A description of the vulnerability and attack vector.
    * Reproduction steps or proof-of-concept script.

@@ -12,11 +12,7 @@ StartupNotify=true
 StartupWMClass=hotspot-share
 MimeType=application/octet-stream;
 Keywords=hotspot;share;transfer;wifi;phone;files;clipboard;HotspotShare;hotspot-share;localsend;airdrop;quickshare;
-Actions=OpenFolder;HeadlessMode;
-
-[Desktop Action OpenFolder]
-Name=Open Shared Folder
-Exec=xdg-open %U
+Actions=HeadlessMode;
 
 [Desktop Action HeadlessMode]
 Name=Start Headless Terminal Server

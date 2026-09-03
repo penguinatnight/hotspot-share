@@ -1,3 +1,12 @@
+hotspot-share (2.0.9-1) unstable; urgency=medium
+
+  * Fix About modal actions (GitHub link, re-open tour, close) and add /api/open-url handler.
+  * Update clipboard directionality: "Send Image to Phone" on desktop, "Send Image to PC" on mobile.
+  * Remove AI-slop lock icon from Zero Auto-Sync Privacy banner.
+  * Add session disconnect and 8-digit PIN revocation endpoint.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 23:30:00 +0300
+
 hotspot-share (2.0.0-1) unstable; urgency=medium
 
   * Initial professional store release for Ubuntu and Debian.
@@ -5,4 +14,4 @@ hotspot-share (2.0.0-1) unstable; urgency=medium
   * Native GTK3/WebKit launcher with system tray and notification support.
   * PIN pairing security and NetworkManager Wi-Fi hotspot management.
 
- -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Tue, 01 Sep 2026 19:00:00 +0300
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Tue, 01 Sep 2026 19:00:00 +0300
