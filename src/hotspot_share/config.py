@@ -82,37 +82,68 @@ def get_default_share_dir() -> Path:
     return target
 
 def get_web_dir() -> Path:
-    # 1. Check relative to source repo (development)
-    source_web = Path(__file__).resolve().parent.parent.parent / "web"
-    if source_web.exists() and (source_web / "index.html").exists():
-        return source_web
+    """Resolve the web frontend assets directory across dev, snap, deb, and pip installs."""
+    candidates = []
 
-    # 2. Check within installed python package data
-    pkg_web = Path(__file__).resolve().parent / "web"
-    if pkg_web.exists() and (pkg_web / "index.html").exists():
-        return pkg_web
+    # 1. Environment variable override (for tests and custom deployments)
+    env_web = os.environ.get("HOTSPOT_WEB_DIR")
+    if env_web:
+        candidates.append(Path(env_web))
 
-    # 3. Check SNAP environment
+    # 2. Check SNAP environment (prioritize snap container paths if running inside snap)
     snap_path = os.environ.get("SNAP")
     if snap_path:
-        snap_web = Path(snap_path) / "share" / APP_NAME / "web"
-        if snap_web.exists():
-            return snap_web
+        snap_root = Path(snap_path)
+        candidates.extend([
+            snap_root / "usr" / "share" / APP_NAME / "web",
+            snap_root / "share" / APP_NAME / "web",
+            snap_root / "web",
+        ])
 
-    # 4. Check standard system locations
-    system_paths = [
+    # 3. Check relative to source repo (development / source checkout)
+    source_web = Path(__file__).resolve().parent.parent.parent / "web"
+    candidates.append(source_web)
+
+    # 4. Check within installed python package data
+    pkg_web = Path(__file__).resolve().parent / "web"
+    candidates.append(pkg_web)
+
+    # 5. Check standard system and user FHS locations
+    candidates.extend([
         Path("/usr/share") / APP_NAME / "web",
         Path("/usr/local/share") / APP_NAME / "web",
-        Path.home() / ".local" / "share" / APP_NAME / "web"
-    ]
-    for p in system_paths:
-        if p.exists() and (p / "index.html").exists():
+        Path.home() / ".local" / "share" / APP_NAME / "web",
+        Path(sys.prefix) / "share" / APP_NAME / "web",
+        Path(sys.prefix) / "local" / "share" / APP_NAME / "web",
+    ])
+
+    for p in candidates:
+        if p and p.is_dir() and (p / "index.html").is_file():
             return p
 
     return source_web
 
 def get_icon_file(size=512, ext="png") -> Path:
-    # 1. Check source repo
+    # 1. Prioritize SNAP environment if running inside snap
+    snap_path = os.environ.get("SNAP")
+    if snap_path:
+        snap_root = Path(snap_path)
+        if ext == "svg":
+            snap_svg = snap_root / "assets" / "icons" / "hotspot-share.svg"
+            if snap_svg.is_file():
+                return snap_svg
+            for p in [snap_root / "usr" / "share" / "icons" / "hicolor" / "scalable" / "apps" / "hotspot-share.svg",
+                      snap_root / "share" / "icons" / "hicolor" / "scalable" / "apps" / "hotspot-share.svg"]:
+                if p.is_file():
+                    return p
+        else:
+            for p in [snap_root / "usr" / "share" / "icons" / "hicolor" / f"{size}x{size}" / "apps" / "hotspot-share.png",
+                      snap_root / "share" / "icons" / "hicolor" / f"{size}x{size}" / "apps" / "hotspot-share.png",
+                      snap_root / "meta" / "gui" / "hotspot-share.png"]:
+                if p.is_file():
+                    return p
+
+    # 2. Check source repo (development)
     if ext == "svg":
         source_svg = Path(__file__).resolve().parent.parent.parent / "assets" / "icons" / "hotspot-share.svg"
         if source_svg.is_file():
@@ -122,15 +153,13 @@ def get_icon_file(size=512, ext="png") -> Path:
         if source_png.is_file():
             return source_png
 
-    # 2. Check XDG icon dirs
+    # 3. Check XDG & system icon dirs
     hicolor_paths = [
         Path.home() / ".local" / "share" / "icons" / "hicolor",
         Path("/usr/share/icons/hicolor"),
-        Path("/usr/local/share/icons/hicolor")
+        Path("/usr/local/share/icons/hicolor"),
+        Path(sys.prefix) / "share" / "icons" / "hicolor",
     ]
-    snap_path = os.environ.get("SNAP")
-    if snap_path:
-        hicolor_paths.insert(0, Path(snap_path) / "share" / "icons" / "hicolor")
 
     for base in hicolor_paths:
         if ext == "svg":
