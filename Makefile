@@ -78,6 +78,12 @@ install-user: build
 	@echo 'PYTHONPATH="$(CURDIR)/src:$$PYTHONPATH" exec $(PYTHON) -m hotspot_share.cli "$$@"' >> $(HOME)/.local/bin/hotspot-share
 	chmod 755 $(HOME)/.local/bin/hotspot-share
 	install -m 644 packaging/desktop/hotspot-share.desktop $(HOME)/.local/share/applications/hotspot-share.desktop
+	# Clean any override desktop entries that break snapd / Ubuntu App Center launching
+	@rm -f $(HOME)/.local/share/applications/hotspot-share_hotspot-share*.desktop
+	# If snap package is installed, mask the local desktop entry so GNOME app search shows exactly one icon
+	@if [ -f /var/lib/snapd/desktop/applications/hotspot-share_hotspot-share.desktop ]; then \
+		sed -i '/^\[Desktop Entry\]/a NoDisplay=true' $(HOME)/.local/share/applications/hotspot-share.desktop; \
+	fi
 	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(HOME)/.local/share/metainfo/org.yab.hotspotshare.metainfo.xml
 	install -m 644 packaging/appstream/org.yab.hotspotshare.metainfo.xml $(HOME)/.local/share/metainfo/hotspot-share.metainfo.xml
 	cp -r web/* $(HOME)/.local/share/hotspot-share/web/
@@ -95,10 +101,33 @@ install-user: build
 	appstreamcli refresh-cache 2>/dev/null || true
 	@echo "User installation complete! You can now run 'hotspot-share-gui' or launch from your app menu."
 
-uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/hotspot-share $(DESTDIR)$(BINDIR)/hotspot-share-gui
-	rm -f $(DESTDIR)$(DATADIR)/applications/hotspot-share.desktop
-	rm -f $(DESTDIR)$(DATADIR)/metainfo/org.yab.hotspotshare.metainfo.xml
-	rm -rf $(DESTDIR)$(DATADIR)/hotspot-share
-	rm -f $(DESTDIR)$(DATADIR)/icons/hicolor/*/apps/hotspot-share.*
-	rm -f $(DESTDIR)$(DATADIR)/nautilus-python/extensions/hotspot_share_nautilus.py
+uninstall: uninstall-user
+	-rm -f $(DESTDIR)$(BINDIR)/hotspot-share $(DESTDIR)$(BINDIR)/hotspot-share-gui 2>/dev/null || true
+	-rm -f $(DESTDIR)$(DATADIR)/applications/hotspot-share.desktop 2>/dev/null || true
+	-rm -f $(DESTDIR)$(DATADIR)/metainfo/org.yab.hotspotshare.metainfo.xml 2>/dev/null || true
+	-rm -rf $(DESTDIR)$(DATADIR)/hotspot-share 2>/dev/null || true
+	-rm -f $(DESTDIR)$(DATADIR)/icons/hicolor/*/apps/hotspot-share.* 2>/dev/null || true
+	-rm -f $(DESTDIR)$(DATADIR)/nautilus-python/extensions/hotspot_share_nautilus.py 2>/dev/null || true
+	@echo "Hotspot Share system uninstallation complete."
+
+uninstall-user:
+	@echo "Purging Hotspot Share user files, persistent caches, and shared directories..."
+	rm -f $(HOME)/.local/bin/hotspot-share $(HOME)/.local/bin/hotspot-share-gui
+	rm -f $(HOME)/.local/share/applications/hotspot-share.desktop
+	rm -f $(HOME)/.local/share/applications/hotspot-share_hotspot-share.desktop
+	rm -f $(HOME)/.local/share/applications/hotspot-share_hotspot-share-gui.desktop
+	rm -f $(HOME)/.local/share/metainfo/org.yab.hotspotshare.metainfo.xml
+	rm -f $(HOME)/.local/share/metainfo/hotspot-share.metainfo.xml
+	rm -rf $(HOME)/.local/share/hotspot-share
+	rm -rf $(HOME)/.cache/hotspot-share
+	rm -rf $(HOME)/.config/hotspot-share
+	rm -rf $(HOME)/Downloads/HotspotShare
+	rm -rf $(HOME)/HotspotShare
+	rm -f $(HOME)/.local/share/icons/hicolor/*/apps/hotspot-share.*
+	rm -f $(HOME)/.local/share/icons/hicolor/scalable/apps/hotspot-share.svg
+	rm -f $(HOME)/.local/share/nautilus-python/extensions/hotspot_share_nautilus.py
+	update-desktop-database $(HOME)/.local/share/applications 2>/dev/null || true
+	gtk-update-icon-cache -f -t $(HOME)/.local/share/icons/hicolor 2>/dev/null || true
+	@echo "Hotspot Share user uninstallation and data purge complete."
+
+purge: uninstall-user

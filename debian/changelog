@@ -1,3 +1,12 @@
+hotspot-share (2.0.9-1) unstable; urgency=medium
+
+  * Fix About modal actions (GitHub link, re-open tour, close) and add /api/open-url handler.
+  * Update clipboard directionality: "Send Image to Phone" on desktop, "Send Image to PC" on mobile.
+  * Remove AI-slop lock icon from Zero Auto-Sync Privacy banner.
+  * Add session disconnect and 8-digit PIN revocation endpoint.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 23:30:00 +0300
+
 hotspot-share (2.0.8-1) unstable; urgency=medium
 
   * Fix Snap web assets and icon discovery path ($SNAP/usr/share/hotspot-share/web).

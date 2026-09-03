@@ -9,6 +9,7 @@ let currentConnectedPhoneName = '';
 let isLocalClient = false;
 let pcHostName = '';
 let activeServerTransferId = null;
+let onboardingTriggered = false;
 
 let pendingClipImageFile = null;
 let pendingClipImageBase64 = null;
@@ -19,48 +20,60 @@ if (_urlParams.get('token')) {
   authToken = _urlParams.get('token');
   localStorage.setItem('hotspot_share_token', authToken);
 }
+if (_urlParams.get('onboard') || _urlParams.get('tour') || _urlParams.get('reset')) {
+  localStorage.removeItem('hotspot_onboarded');
+}
 
 function authHeaders(extraHeaders = {}) {
   const headers = { ...extraHeaders };
   if (authToken) {
     headers['Authorization'] = 'Bearer ' + authToken;
+    headers['X-Auth-Token'] = authToken;
   }
   return headers;
 }
 
-let pinModalShown = false;
+function showPinAuthScreen(errorMsg = '') {
+  document.documentElement.setAttribute('data-auth-locked', 'true');
+  document.body.classList.add('pin-auth-locked');
+  const overlay = document.getElementById('pinAuthOverlay');
+  const errEl = document.getElementById('pinAuthError');
+  const inp = document.getElementById('pinAuthInput');
+  if (errEl) {
+    if (errorMsg) {
+      errEl.innerText = errorMsg;
+      errEl.style.display = 'block';
+    } else {
+      errEl.innerText = '';
+      errEl.style.display = 'none';
+    }
+  }
+  if (overlay) {
+    overlay.style.display = 'flex';
+  }
+  if (inp) {
+    setTimeout(() => {
+      try { inp.focus(); } catch (e) {}
+    }, 120);
+  }
+}
+
+function hidePinAuthScreen() {
+  document.documentElement.removeAttribute('data-auth-locked');
+  document.body.classList.remove('pin-auth-locked');
+  const overlay = document.getElementById('pinAuthOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  const errEl = document.getElementById('pinAuthError');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.innerText = '';
+  }
+}
 
 function showPinAuthModal(msg = '') {
-  if (pinModalShown) return;
-  pinModalShown = true;
-
-  const html = `
-    <div style="text-align:center;padding:10px 4px;">
-      <div style="width:48px;height:48px;border-radius:14px;background:var(--btn-secondary-bg);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;color:var(--text-primary);">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-      <h3 style="margin-bottom:6px;font-size:18px;font-weight:700;color:var(--text-primary);">8-Digit Security PIN</h3>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.4;">
-        This Hotspot Share server requires pairing. Enter the 8-digit PIN displayed on the PC screen:
-      </p>
-      ${msg ? `<p style="color:#ef4444;font-size:12px;margin-bottom:12px;font-weight:600;">${escapeHtml(msg)}</p>` : ''}
-      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px;">
-        <input type="text" id="pinAuthInput" maxlength="9" placeholder="•••• ••••" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*"
-          style="width:200px;font-size:22px;text-align:center;letter-spacing:3px;font-family:monospace;font-weight:700;padding:10px 14px;border-radius:10px;border:1px solid var(--border-focus);background:var(--card-bg);color:var(--text-primary);"
-          oninput="formatPinAuthInput(this)"
-          onkeydown="if(event.key==='Enter') submitPinAuth()">
-      </div>
-      <div style="display:flex;gap:10px;justify-content:center;">
-        <button class="btn-primary" style="padding:10px 24px;font-size:14px;font-weight:600;" onclick="submitPinAuth()">Authorize & Connect</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('modalBody').innerHTML = html;
-  document.getElementById('modal').classList.add('active');
-  setTimeout(() => {
-    const inp = document.getElementById('pinAuthInput');
-    if (inp) inp.focus();
-  }, 100);
+  showPinAuthScreen(msg);
 }
 
 function formatPinAuthInput(input) {
@@ -75,8 +88,19 @@ function formatPinAuthInput(input) {
 
 async function submitPinAuth() {
   const inp = document.getElementById('pinAuthInput');
-  const rawPin = inp ? inp.value.replace(/\s+/g, '').trim() : '';
-  if (!rawPin) return;
+  const rawPin = inp ? inp.value.replace(/\D/g, '').trim() : '';
+  if (!rawPin || rawPin.length !== 8) {
+    showPinAuthScreen('Please enter the full 8-digit PIN code.');
+    return;
+  }
+
+  const submitBtn = document.getElementById('btnSubmitPinAuth');
+  const btnText = document.getElementById('btnSubmitPinAuthText');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.7';
+    if (btnText) btnText.innerText = 'Verifying...';
+  }
 
   try {
     const res = await fetch('/api/auth/verify', {
@@ -84,23 +108,51 @@ async function submitPinAuth() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: rawPin })
     });
-    const data = await res.json();
-    if (res.ok && data.status === 'ok' && data.token) {
+
+    let data = null;
+    try {
+      const text = await res.text();
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      data = {
+        status: 'error',
+        message: (res.status === 403)
+          ? 'Incorrect PIN code. Please check the code on your PC.'
+          : (res.status === 429 ? 'Too many failed attempts. Please wait 30 seconds.' : 'Unable to connect to PC.')
+      };
+    }
+
+    if (res.ok && data && data.status === 'ok' && data.token) {
       authToken = data.token;
       localStorage.setItem('hotspot_share_token', authToken);
-      pinModalShown = false;
-      document.getElementById('modal').classList.remove('active');
+      hidePinAuthScreen();
       showToast('Connected & paired!');
-      sendHeartbeatAndPollStatus();
-      loadFiles();
-      loadClip();
+      await sendHeartbeatAndPollStatus();
+      if (activeTabId === 'clip') {
+        loadClip();
+      }
+      if (activeTabId === 'files') {
+        loadFiles();
+      }
     } else {
-      pinModalShown = false;
-      showPinAuthModal(data.message || 'Invalid PIN code. Please check PC screen.');
+      const msg = (data && data.message)
+        ? data.message
+        : (res.status === 429
+            ? 'Too many failed attempts. Please wait 30 seconds.'
+            : 'Incorrect PIN code. Please check the code on your PC.');
+      showPinAuthScreen(msg);
+      if (inp) {
+        inp.select();
+      }
     }
   } catch (e) {
-    pinModalShown = false;
-    showPinAuthModal('Connection error: ' + e.message);
+    showPinAuthScreen('Unable to reach PC. Check your Wi-Fi connection.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      if (btnText) btnText.innerText = 'Authorize & Connect';
+    }
   }
 }
 
@@ -268,6 +320,190 @@ async function getPhoneStorageInfo() {
 let currentServerAuthEnabled = false;
 let currentServerPin = "";
 
+async function renderSecuritySection() {
+  try {
+    const res = await fetch('/api/status?_t=' + Date.now(), { headers: authHeaders() });
+    const data = await res.json();
+    currentServerAuthEnabled = !!data.auth_enabled;
+    currentServerPin = data.pin_code || "";
+    isLocalClient = !!data.is_local_client;
+    pcHostName = data.pc_name || 'PC';
+  } catch (e) {}
+
+  const isEnabled = currentServerAuthEnabled;
+  const isPhone = !isLocalClient;
+  const formatted = (currentServerPin.length === 8)
+    ? `${currentServerPin.slice(0, 4)} ${currentServerPin.slice(4)}`
+    : (currentServerPin || '--------');
+
+  // Update Status Badge on Tab
+  const statusBadge = document.getElementById('secStatusBadge');
+  if (statusBadge) {
+    if (isEnabled) {
+      statusBadge.className = 'sec-status-badge is-active';
+      statusBadge.innerText = 'Protected';
+    } else {
+      statusBadge.className = 'sec-status-badge is-disabled';
+      statusBadge.innerText = 'Disabled';
+    }
+  }
+
+  const toggleTitle = document.getElementById('secToggleStateTitle');
+  const toggleDesc = document.getElementById('secToggleStateDesc');
+  const btnContainer = document.getElementById('secToggleBtnContainer');
+  const activePinBox = document.getElementById('secActivePinBox');
+  const oneSentence = document.getElementById('secOneSentenceDesc');
+
+  if (isPhone) {
+    if (toggleTitle) {
+      toggleTitle.innerText = isEnabled
+        ? `Protected by ${pcHostName}`
+        : `Connected to ${pcHostName}`;
+    }
+    if (toggleDesc) {
+      toggleDesc.innerText = isEnabled
+        ? `Your phone is paired and verified with ${pcHostName}. Direct Wi-Fi transfers and clipboard are secured.`
+        : `PIN protection is disabled on ${pcHostName}. Anyone on this Wi-Fi can transfer files.`;
+    }
+    if (oneSentence) {
+      oneSentence.innerText = isEnabled
+        ? 'This phone session is authenticated with 8-digit PIN protection.'
+        : 'Connected over local Wi-Fi without PIN protection.';
+    }
+    if (btnContainer) {
+      if (isEnabled) {
+        btnContainer.innerHTML = `
+          <button class="btn-secondary" id="btnUnpairPhone" onclick="unpairPhoneSession()">
+            Unpair Device
+          </button>
+        `;
+      } else {
+        btnContainer.innerHTML = '';
+      }
+    }
+    if (activePinBox) {
+      activePinBox.style.display = 'none';
+    }
+  } else {
+    // Desktop View: Host Controls
+    if (toggleTitle) {
+      toggleTitle.innerText = isEnabled
+        ? 'PIN Protection is On'
+        : 'PIN Protection is Off';
+    }
+    if (toggleDesc) {
+      toggleDesc.innerText = isEnabled
+        ? 'Connecting devices must enter this 8-digit code to pair.'
+        : 'Anyone on your Wi-Fi can transfer files without a code.';
+    }
+    if (oneSentence) {
+      oneSentence.innerText = 'Require an 8-digit code before connecting devices can transfer files or access clipboard.';
+    }
+    if (btnContainer) {
+      if (isEnabled) {
+        btnContainer.innerHTML = `
+          <button class="btn-secondary" id="btnDisablePinAction" onclick="toggleAuthSecurity(false)">
+            Disable PIN Protection
+          </button>
+        `;
+      } else {
+        btnContainer.innerHTML = `
+          <button class="btn-primary" id="btnEnablePinAction" onclick="toggleAuthSecurity(true)">
+            Enable PIN Protection
+          </button>
+        `;
+      }
+    }
+    if (activePinBox) {
+      activePinBox.style.display = isEnabled ? 'block' : 'none';
+    }
+    const pinDigits = document.getElementById('secPinDigits');
+    if (pinDigits) {
+      pinDigits.innerText = formatted;
+    }
+  }
+}
+
+async function unpairPhoneSession() {
+  if (!confirm('Disconnect and revoke pairing? You will need to enter the 8-digit PIN again to reconnect.')) return;
+  try {
+    await fetch('/api/auth/disconnect', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({})
+    });
+  } catch (e) {}
+  authToken = '';
+  localStorage.removeItem('hotspot_share_token');
+  showToast('Disconnected & sharing code revoked');
+  showPinAuthScreen();
+  await sendHeartbeatAndPollStatus();
+}
+
+async function disconnectAllDevices() {
+  if (!confirm('Disconnect paired mobile devices and generate a new 8-digit sharing code?')) return;
+  try {
+    const res = await fetch('/api/auth/disconnect', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentServerPin = data.pin_code || '';
+      showToast('Disconnected. New PIN: ' + (data.formatted_pin || currentServerPin));
+      await sendHeartbeatAndPollStatus();
+      renderSecuritySection();
+    } else {
+      showToast('Failed to disconnect: ' + (data.message || 'Error'));
+    }
+  } catch (e) {
+    showToast('Failed to disconnect: ' + e.message);
+  }
+}
+
+function copyActivePin() {
+  if (!currentServerPin) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(currentServerPin).then(() => {
+      showToast('8-Digit PIN copied to clipboard');
+    }).catch(() => {
+      showToast('PIN: ' + currentServerPin);
+    });
+  } else {
+    showToast('PIN: ' + currentServerPin);
+  }
+}
+
+async function setCustomPinFromTab() {
+  const inp = document.getElementById('secCustomPinInput');
+  const pin = inp ? inp.value.trim() : '';
+  if (pin.length !== 8 || !/^\d{8}$/.test(pin)) {
+    showToast('PIN must be exactly 8 digits');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/configure', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action: 'set_pin', pin })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      currentServerAuthEnabled = true;
+      currentServerPin = data.pin_code;
+      if (inp) inp.value = '';
+      renderSecuritySection();
+      sendHeartbeatAndPollStatus();
+      showToast('Custom 8-digit PIN set!');
+    } else {
+      showToast(data.message || 'Failed to set PIN');
+    }
+  } catch (e) {
+    showToast('Failed to set PIN: ' + e.message);
+  }
+}
+
 async function openSecurityModal() {
   try {
     const res = await fetch('/api/status?_t=' + Date.now(), { headers: authHeaders() });
@@ -276,67 +512,150 @@ async function openSecurityModal() {
     currentServerPin = data.pin_code || "";
   } catch (e) {}
 
+  const isEnabled = currentServerAuthEnabled;
   const formatted = (currentServerPin.length === 8)
     ? `${currentServerPin.slice(0, 4)} ${currentServerPin.slice(4)}`
     : (currentServerPin || '--------');
 
+  const toggleBtnHtml = isEnabled
+    ? `<button class="btn-secondary" style="padding:7px 14px;font-size:12.5px;font-weight:600;" onclick="toggleAuthSecurity(false)">
+        Disable PIN Protection
+      </button>`
+    : `<button class="btn-primary" style="padding:7px 14px;font-size:12.5px;font-weight:600;" onclick="toggleAuthSecurity(true)">
+        Enable PIN Protection
+      </button>`;
+
   const html = `
     <div style="text-align:left;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <div style="width:36px;height:36px;border-radius:10px;background:var(--btn-secondary-bg);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);color:var(--text-primary);">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div class="sec-icon-emblem">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="3" ry="3"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            <circle cx="12" cy="16" r="1"/>
+            <path d="M12 17v2"/>
+          </svg>
         </div>
         <div>
-          <h3 style="font-size:17px;font-weight:700;margin:0;color:var(--text-primary);">Security & 8-Digit PIN</h3>
-          <span style="font-size:12px;color:var(--text-secondary);">Protect file transfers with an 8-digit authorization code</span>
+          <h3 style="font-size:17px;font-weight:600;margin:0;color:var(--text-primary);">PIN Protection</h3>
+          <span style="font-size:12px;color:var(--text-secondary);">Require an 8-digit code before connecting devices can transfer files.</span>
         </div>
       </div>
 
       <!-- PIN Settings Card -->
-      <div style="background:var(--btn-secondary-bg);border:1px solid var(--border);border-radius:14px;padding:14px;margin:14px 0;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="background:var(--btn-secondary-bg);border:1px solid var(--border);border-radius:14px;padding:16px;margin:14px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div>
-            <b style="font-size:13px;color:var(--text-primary);display:block;">Require 8-Digit PIN</b>
-            <span style="font-size:11px;color:var(--text-secondary);">Connecting phones must enter this PIN before transferring</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <b style="font-size:13px;color:var(--text-primary);">Require 8-Digit PIN</b>
+              <span class="sec-status-badge ${isEnabled ? 'is-active' : 'is-disabled'}">
+                ${isEnabled ? 'Protected' : 'Disabled'}
+              </span>
+            </div>
+            <span style="font-size:12px;color:var(--text-secondary);margin-top:3px;display:block;">
+              ${isEnabled ? 'Connecting devices must enter this code to pair.' : 'Anyone on your Wi-Fi can transfer files without a code.'}
+            </span>
           </div>
-          <button class="${currentServerAuthEnabled ? 'btn-primary' : 'btn-secondary'}" style="padding:6px 14px;font-size:12px;font-weight:600;" onclick="toggleAuthSecurity(!currentServerAuthEnabled)">
-            ${currentServerAuthEnabled ? 'Enabled' : 'Disabled'}
-          </button>
+          ${toggleBtnHtml}
         </div>
 
         <!-- Live PIN Display and Actions -->
-        <div id="pinConfigDetails" style="display:${currentServerAuthEnabled ? 'block' : 'none'};margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
-          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Active 8-Digit PIN</div>
+        <div id="pinConfigDetails" style="display:${isEnabled ? 'block' : 'none'};margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Active Pairing PIN</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card-bg);border:1px solid var(--border-focus);padding:10px 14px;border-radius:10px;">
             <span id="activePinDisplay" style="font-family:monospace;font-size:22px;font-weight:700;letter-spacing:3px;color:var(--text-primary);">${escapeHtml(formatted)}</span>
-            <button class="btn-secondary" onclick="regeneratePinCode()" style="font-size:11px;padding:6px 12px;">Regenerate</button>
+            <button class="btn-secondary" onclick="regeneratePinCode()" style="font-size:11.5px;padding:6px 12px;">Regenerate</button>
           </div>
 
           <!-- Custom PIN Input -->
           <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
-            <input type="text" id="customPinInput" maxlength="8" placeholder="Custom 8-Digit PIN" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:14px;color:var(--text-primary);letter-spacing:1px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-            <button class="btn-secondary" onclick="setCustomPinCode()" style="font-size:11px;padding:8px 12px;">Set PIN</button>
+            <input type="text" id="customPinInput" maxlength="8" placeholder="Custom 8-digit PIN" style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:13.5px;color:var(--text-primary);letter-spacing:1px;" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <button class="btn-secondary" onclick="setCustomPinCode()" style="font-size:11.5px;padding:8px 12px;">Set PIN</button>
           </div>
         </div>
       </div>
 
-      <!-- Tutorial: How 8-Digit PIN Works -->
-      <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;">
-        <b style="font-size:12px;color:var(--text-primary);display:block;margin-bottom:6px;">How 8-Digit PIN Pairing Works:</b>
-        <ul style="font-size:11px;color:var(--text-secondary);padding-left:16px;margin:0;line-height:1.6;">
-          <li><b>One-Time Pairing:</b> Connecting phones enter the 8-digit code once to receive an in-memory session token.</li>
-          <li><b>Rate-Limited:</b> 5 consecutive incorrect PIN attempts locks out the client IP for 30 seconds.</li>
-          <li><b>Host-Only Access:</b> PIN configuration, regeneration, and custom PIN changes can only be performed on this PC.</li>
-        </ul>
-      </div>
-
-      <div style="display:flex;justify-content:flex-end;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button class="btn-secondary" onclick="closeModal(); switchTab('security');">Open Security Tab</button>
         <button class="btn-primary" onclick="closeModal()">Done</button>
       </div>
     </div>
   `;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('modal').classList.add('active');
+}
+
+function openAboutModal() {
+  const iconB64 = (typeof window.__ICON_BASE64__ !== 'undefined' && window.__ICON_BASE64__) || '';
+  const iconSrc = iconB64 ? `data:image/png;base64,${iconB64}` : '/icon.svg';
+  const html = `
+    <div class="about-modal-wrapper">
+      <div class="about-modal-header">
+        <div class="about-logo-box">
+          <img src="${iconSrc}" class="about-app-logo" alt="Hotspot Share" onerror="this.src='/icon.svg'">
+        </div>
+        <div class="about-meta">
+          <div class="about-title-row">
+            <h2 class="about-app-title">Hotspot Share</h2>
+            <span class="about-version-badge">v2.0.9</span>
+          </div>
+          <div class="about-app-tagline">High-Speed Local Wi-Fi File Sharing &amp; Multimodal Sync</div>
+        </div>
+      </div>
+
+      <p class="about-description">
+        Hotspot Share is a zero-cloud, privacy-first peer-to-peer sharing system designed for Linux desktops and mobile phones.
+        Transfer large files and directories at full Wi-Fi link speeds via a direct 8MB chunked transfer engine, and seamlessly sync clipboard text and images between your devices—with zero phone apps, zero cloud telemetry, and zero account logins.
+      </p>
+
+      <div class="about-specs-grid">
+        <div class="about-spec-item">
+          <span class="about-spec-label">Maintainer</span>
+          <span class="about-spec-val">penguinatnight</span>
+        </div>
+        <div class="about-spec-item">
+          <span class="about-spec-label">Contact</span>
+          <a href="mailto:penguinatnight1@gmail.com" onclick="openExternalUrl('mailto:penguinatnight1@gmail.com'); return false;" class="about-spec-link">penguinatnight1@gmail.com</a>
+        </div>
+        <div class="about-spec-item">
+          <span class="about-spec-label">License</span>
+          <span class="about-spec-val">GPL-3.0 (Open Source)</span>
+        </div>
+        <div class="about-spec-item">
+          <span class="about-spec-label">Architecture</span>
+          <span class="about-spec-val">Python 3 + WebKitGTK</span>
+        </div>
+      </div>
+
+      <div class="about-actions-row">
+        <button type="button" class="btn-primary about-action-btn" onclick="openExternalUrl('https://github.com/penguinatnight/hotspot-share')">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub Source</span>
+        </button>
+        <button type="button" class="btn-secondary about-action-btn" onclick="closeAboutAndTour()">
+          <span>Re-open Tour</span>
+        </button>
+        <button type="button" class="btn-secondary about-action-btn" onclick="closeModal()">
+          <span>Close</span>
+        </button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modal').classList.add('active');
+}
+
+function openExternalUrl(url) {
+  if (!url) return;
+  fetch('/api/open-url?url=' + encodeURIComponent(url), { headers: authHeaders() }).catch(() => {});
+  try {
+    window.open(url, '_blank');
+  } catch (e) {}
+}
+
+function closeAboutAndTour() {
+  closeModal();
+  setTimeout(() => openOnboarding(true), 150);
 }
 
 async function toggleAuthSecurity(enable) {
@@ -348,9 +667,12 @@ async function toggleAuthSecurity(enable) {
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      currentServerAuthEnabled = data.auth_enabled;
+      currentServerAuthEnabled = !!data.auth_enabled;
       currentServerPin = data.pin_code || "";
-      openSecurityModal();
+      renderSecuritySection();
+      if (document.getElementById('modal').classList.contains('active')) {
+        openSecurityModal();
+      }
       sendHeartbeatAndPollStatus();
       showToast(enable ? '8-Digit PIN Protection Enabled' : 'PIN Protection Disabled');
     }
@@ -368,8 +690,12 @@ async function regeneratePinCode() {
     });
     const data = await res.json();
     if (data.status === 'ok') {
+      currentServerAuthEnabled = true;
       currentServerPin = data.pin_code;
-      openSecurityModal();
+      renderSecuritySection();
+      if (document.getElementById('modal').classList.contains('active')) {
+        openSecurityModal();
+      }
       sendHeartbeatAndPollStatus();
       showToast('New 8-digit PIN generated!');
     }
@@ -393,8 +719,12 @@ async function setCustomPinCode() {
     });
     const data = await res.json();
     if (data.status === 'ok') {
+      currentServerAuthEnabled = true;
       currentServerPin = data.pin_code;
-      openSecurityModal();
+      renderSecuritySection();
+      if (document.getElementById('modal').classList.contains('active')) {
+        openSecurityModal();
+      }
       sendHeartbeatAndPollStatus();
       showToast('Custom 8-digit PIN set!');
     } else {
@@ -405,13 +735,24 @@ async function setCustomPinCode() {
   }
 }
 
-// PWA INSTALLATION SYSTEM
+// PWA INSTALLATION SYSTEM (Mobile-Only)
 let deferredPwaPrompt = null;
+
+function isMobileClient() {
+  if (isLocalClient) return false;
+  const ua = navigator.userAgent || '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+                     (navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua));
+  const isSmallScreen = window.innerWidth <= 768;
+  return isMobileUA || isSmallScreen;
+}
 
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
-  deferredPwaPrompt = e;
-  updatePwaInstallVisibility();
+  if (isMobileClient()) {
+    deferredPwaPrompt = e;
+    updatePwaInstallVisibility();
+  }
 });
 
 window.addEventListener('appinstalled', () => {
@@ -425,7 +766,7 @@ function isAppStandalone() {
 }
 
 function updatePwaInstallVisibility() {
-  const isMobile = !isLocalClient;
+  const isMobile = isMobileClient();
   const standalone = isAppStandalone();
   const bannerDismissed = sessionStorage.getItem('pwa_banner_dismissed') === 'true';
 
@@ -536,8 +877,11 @@ async function sendHeartbeatAndPollStatus() {
       })
     });
     if (hbRes.status === 401) {
-      showPinAuthModal();
-      return;
+      if (authToken) {
+        authToken = '';
+        localStorage.removeItem('hotspot_share_token');
+      }
+      showPinAuthScreen();
     }
 
     const res = await fetch('/api/status?_t=' + Date.now(), { 
@@ -545,8 +889,10 @@ async function sendHeartbeatAndPollStatus() {
       headers: authHeaders()
     });
     const data = await res.json();
-    if (data.auth_required && !authToken) {
-      showPinAuthModal();
+    if (data.auth_required) {
+      showPinAuthScreen();
+    } else if (data.is_authenticated || !data.auth_enabled || data.is_local_client) {
+      hidePinAuthScreen();
     }
     
     isLocalClient = data.is_local_client;
@@ -565,6 +911,7 @@ async function sendHeartbeatAndPollStatus() {
       const dzTitle = document.getElementById('dropzoneTitle');
       const dzSub = document.getElementById('dropzoneSubtitle');
       const dropzoneEl = document.getElementById('dropzone');
+      const discBtn = document.getElementById('disconnectMiniBtn');
 
       if (data.connected && data.phones && data.phones.length > 0) {
         const p = data.phones[0];
@@ -572,6 +919,7 @@ async function sendHeartbeatAndPollStatus() {
         currentConnectedPhoneName = p.device_name || 'Phone';
         beacon.className = 'beacon-dot connected';
         deviceLabel.innerText = 'Connected: ' + currentConnectedPhoneName;
+        if (discBtn) discBtn.style.display = 'inline-flex';
         qrCard.style.display = 'none';
 
         if (dropzoneEl) dropzoneEl.classList.remove('waiting-for-phone');
@@ -603,6 +951,7 @@ async function sendHeartbeatAndPollStatus() {
         currentConnectedPhoneName = '';
         beacon.className = 'beacon-dot';
         deviceLabel.innerText = 'Waiting for phone to connect...';
+        if (discBtn) discBtn.style.display = 'none';
 
         if (dropzoneEl) dropzoneEl.classList.add('waiting-for-phone');
 
@@ -651,10 +1000,11 @@ async function sendHeartbeatAndPollStatus() {
       // Auto-trigger onboarding ONLY on PC desktop
       if (!localStorage.getItem('hotspot_onboarded') && !onboardingTriggered) {
         onboardingTriggered = true;
-        setTimeout(() => openOnboarding(false), 400);
+        openOnboarding(false);
       }
     } else {
-      // Phone View
+      // Phone View - immediately dismiss onboarding
+      document.documentElement.classList.remove('init-onboarding');
       beacon.className = 'beacon-dot connected';
       const myDisplayName = (hw.model !== 'Linux Desktop' && hw.model !== 'Windows PC' && hw.model !== 'Apple Mac' ? hw.model : '') || 'Phone';
       deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
@@ -712,6 +1062,7 @@ async function sendHeartbeatAndPollStatus() {
 
     syncIncomingServerTransfers(data.transfers);
     syncIncomingBeams(data.beams);
+    updateClipboardTabUI();
 
     if (filesNeedRefresh && activeTabId === 'files') {
       filesNeedRefresh = false;
@@ -1017,13 +1368,30 @@ function openOnboarding(force = false) {
   currentOnboardSlide = 0;
   updateOnboardSlideUI();
   const overlay = document.getElementById('onboardingOverlay');
-  if (overlay) overlay.style.display = 'flex';
+  if (overlay) {
+    overlay.classList.remove('fade-out');
+    overlay.style.display = 'flex';
+    document.documentElement.classList.add('init-onboarding');
+  }
 }
 
 function finishOnboarding() {
   localStorage.setItem('hotspot_onboarded', 'true');
+  document.documentElement.classList.remove('init-onboarding');
   const overlay = document.getElementById('onboardingOverlay');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) {
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      overlay.classList.remove('fade-out');
+      showToast('Welcome to Hotspot Share! Ready for transfers.');
+      const qrCard = document.getElementById('qrConnectCard');
+      if (qrCard && qrCard.style.display !== 'none') {
+        qrCard.classList.add('pulse-highlight');
+        setTimeout(() => qrCard.classList.remove('pulse-highlight'), 2200);
+      }
+    }, 300);
+  }
 }
 
 function handleOnboardingBackdropClick(e) {
@@ -1031,8 +1399,10 @@ function handleOnboardingBackdropClick(e) {
 }
 
 function updateOnboardSlideUI() {
-  const pill = document.getElementById('onboardStepPill');
-  if (pill) pill.innerText = `Step ${currentOnboardSlide + 1} of ${totalOnboardSlides}`;
+  const track = document.getElementById('onboardingTrack');
+  if (track) {
+    track.style.transform = `translate3d(-${currentOnboardSlide * 20}%, 0, 0)`;
+  }
 
   for (let i = 0; i < totalOnboardSlides; i++) {
     const slide = document.getElementById(`onboard-slide-${i}`);
@@ -1050,7 +1420,7 @@ function updateOnboardSlideUI() {
   }
   if (nextBtn) {
     if (currentOnboardSlide === totalOnboardSlides - 1) {
-      nextBtn.innerHTML = 'Get Started';
+      nextBtn.innerHTML = 'Get Started &rarr;';
     } else {
       nextBtn.innerHTML = 'Next &rarr;';
     }
@@ -1079,6 +1449,25 @@ function goToOnboardSlide(idx) {
     updateOnboardSlideUI();
   }
 }
+
+document.addEventListener('keydown', (e) => {
+  const overlay = document.getElementById('onboardingOverlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  const welcomeStage = document.getElementById('onboardingWelcomeStage');
+  const isWelcomeVisible = welcomeStage && welcomeStage.style.display !== 'none';
+
+  if (e.key === 'Escape') {
+    finishOnboarding();
+  } else if (!isWelcomeVisible) {
+    if (e.key === 'ArrowRight' || e.key === 'Enter') {
+      nextOnboardSlide();
+    } else if (e.key === 'ArrowLeft') {
+      prevOnboardSlide();
+    }
+  } else if (isWelcomeVisible && (e.key === 'Enter' || e.key === ' ')) {
+    finishOnboarding();
+  }
+});
 
 // Background Keepalive (Screen WakeLock & Silent Audio Channel for Mobile Backgrounding)
 let wakeLock = null;
@@ -1155,13 +1544,18 @@ function switchTab(tabId) {
   updateSliderPosition(tabId);
 
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('tab-' + tabId).classList.add('active');
+  const target = document.getElementById('tab-' + tabId);
+  if (target) target.classList.add('active');
   if (tabId === 'files') {
     updateFilesBadge(0);
     filesNeedRefresh = false;
     loadFiles();
   }
-  if (tabId === 'clip') loadClip();
+  if (tabId === 'clip') {
+    updateClipboardTabUI();
+    loadClip();
+  }
+  if (tabId === 'security') renderSecuritySection();
 }
 
 async function manualRefresh() {
@@ -1172,6 +1566,7 @@ async function manualRefresh() {
     await sendHeartbeatAndPollStatus();
     if (activeTabId === 'files') await loadFiles();
     if (activeTabId === 'clip') await loadClip(true);
+    if (activeTabId === 'security') await renderSecuritySection();
     showToast('Refreshed');
   } catch (e) {
     showToast('Refresh error');
@@ -1439,6 +1834,10 @@ function cancelUploadTask(cardId) {
     updateSummaryBanner();
     showToast('Cancelled ' + t.file.name);
   }
+}
+
+function handleSummaryCancel() {
+  cancelAllUploads();
 }
 
 function cancelAllUploads() {
@@ -1916,9 +2315,12 @@ function previewFile(encodedPath) {
 }
 
 function closeModal(e) {
-  if (pinModalShown) return;
-  if (e && e.target !== e.currentTarget && e.target !== document.querySelector('.modal-close')) return;
-  document.getElementById('modal').classList.remove('active');
+  if (typeof pinModalShown !== 'undefined' && pinModalShown) return;
+  if (e && e.currentTarget && e.currentTarget.id === 'modal' && e.target !== e.currentTarget && !e.target.closest('.modal-close')) {
+    return;
+  }
+  const modalEl = document.getElementById('modal');
+  if (modalEl) modalEl.classList.remove('active');
   const video = document.querySelector('#modalBody video');
   if (video) video.pause();
   const audio = document.querySelector('#modalBody audio');
@@ -1951,6 +2353,18 @@ async function deleteItem(encodedPath, isDir) {
 
 async function confirmClearSharedFolder() {
   if (confirm('Delete all files and folders in this directory?')) {
+    try {
+      const res = await fetch('/api/clear_all_files', {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        showToast('All files cleared');
+        loadFiles();
+        return;
+      }
+    } catch (e) {}
+
     for (const item of allItems) {
       try {
         await fetch(`/api/delete?path=${encodeURIComponent(item.path)}`, { 
@@ -1968,8 +2382,67 @@ async function confirmClearSharedFolder() {
 // Multimodal Clipboard System (Full Dismiss & Clean-Slate Support)
 // ==============================================================================
 
+function updateClipboardTabUI() {
+  const isPhone = !isLocalClient;
+  const targetDevice = isPhone ? 'PC' : (currentConnectedPhoneName || 'Phone');
+
+  const clipCardTitle = document.getElementById('clipCardTitle');
+  if (clipCardTitle) {
+    clipCardTitle.innerText = isPhone ? 'PC CLIPBOARD' : (targetDevice.toUpperCase() + ' CLIPBOARD');
+  }
+
+  const fetchClipLabel = document.getElementById('fetchClipLabel');
+  if (fetchClipLabel) {
+    fetchClipLabel.innerText = isPhone ? 'Fetch from PC' : `Fetch from ${targetDevice}`;
+  }
+
+  const clipText = document.getElementById('clipText');
+  if (clipText) {
+    clipText.placeholder = isPhone
+      ? "Type or paste text here. Tap 'Send Text to PC' to paste with Ctrl+V on your laptop..."
+      : `Type or paste text here. Tap 'Send Text to ${targetDevice}' to sync with your ${targetDevice}...`;
+  }
+
+  const sendClipTextLabel = document.getElementById('sendClipTextLabel');
+  if (sendClipTextLabel) {
+    sendClipTextLabel.innerText = isPhone
+      ? 'Send Text to PC (Ctrl+V)'
+      : `Send Text to ${targetDevice}`;
+  }
+
+  const clipImageCardTitle = document.getElementById('clipImageCardTitle');
+  if (clipImageCardTitle) {
+    clipImageCardTitle.innerText = isPhone
+      ? 'SEND IMAGE TO PC CLIPBOARD'
+      : `SEND IMAGE TO ${targetDevice.toUpperCase()}`;
+  }
+
+  const clipImageDesc = document.getElementById('clipImageDesc');
+  if (clipImageDesc) {
+    clipImageDesc.innerHTML = isPhone
+      ? `Select or paste an image here to copy it directly into your PC's clipboard. You can immediately press <b>Ctrl+V</b> in Discord, Telegram, Slack, LibreOffice, GIMP, or any PC app.`
+      : `Select or paste an image here to send it directly to your ${targetDevice}'s clipboard or photo gallery.`;
+  }
+
+  const btnSendImageAction = document.getElementById('btnSendImageAction');
+  if (btnSendImageAction) {
+    btnSendImageAction.innerText = isPhone
+      ? 'Send Image to PC (Ctrl+V)'
+      : `Send Image to ${targetDevice}`;
+  }
+
+  const selectImageBtnLabel = document.getElementById('selectImageBtnLabel');
+  if (selectImageBtnLabel) {
+    selectImageBtnLabel.innerText = isPhone
+      ? 'Select Image to Copy'
+      : `Select Image for ${targetDevice}`;
+  }
+}
+
 async function loadClip(showFeedback = false) {
   try {
+    const isPhone = !isLocalClient;
+    const originDevice = isPhone ? 'PC' : (currentConnectedPhoneName || 'Phone');
     const res = await fetch('/api/clipboard?_t=' + Date.now(), { 
       cache: 'no-store',
       headers: authHeaders()
@@ -1987,19 +2460,19 @@ async function loadClip(showFeedback = false) {
       currentPcImageData = data.data;
       document.getElementById('pcImgElement').src = data.data;
       document.getElementById('pcImgDownloadBtn').href = data.data;
-      document.getElementById('pcImgInfo').innerText = `Image from PC (${data.mime} &bull; ${formatBytes(data.size)})`;
+      document.getElementById('pcImgInfo').innerText = `Image from ${originDevice} (${data.mime} &bull; ${formatBytes(data.size)})`;
       pcImgCard.style.display = 'flex';
       pcTextCard.style.display = 'none';
-      if (showFeedback) showToast('Loaded copied image from PC');
+      if (showFeedback) showToast(`Loaded copied image from ${originDevice}`);
     } else {
       currentPcImageData = null;
       pcImgCard.style.display = 'none';
       pcTextCard.style.display = 'block';
       document.getElementById('clipText').value = data.text || '';
-      if (showFeedback) showToast('Loaded PC clipboard text');
+      if (showFeedback) showToast(`Loaded ${originDevice} clipboard text`);
     }
   } catch (err) {
-    if (showFeedback) showToast('Failed to fetch PC clipboard');
+    if (showFeedback) showToast('Failed to fetch clipboard');
   }
 }
 
@@ -2051,6 +2524,8 @@ function handleClipImageSelect(files) {
 
 async function sendSelectedImageToPc() {
   if (!pendingClipImageBase64 || !pendingClipImageFile) return;
+  const isPhone = !isLocalClient;
+  const targetDevice = isPhone ? 'PC' : (currentConnectedPhoneName || 'Phone');
   try {
     const res = await fetch('/api/clipboard', {
       method: 'POST',
@@ -2062,18 +2537,20 @@ async function sendSelectedImageToPc() {
       })
     });
     if (res.ok) {
-      showToast('Image copied to PC (Press Ctrl+V on PC)');
+      showToast(isPhone ? 'Image copied to PC (Press Ctrl+V on PC)' : `Image sent to ${targetDevice}`);
       cancelSelectedClipImage();
     } else {
-      showToast('Failed to copy image to PC');
+      showToast(`Failed to send image to ${targetDevice}`);
     }
   } catch (err) {
-    alert('Error sending image');
+    showToast('Error sending image');
   }
 }
 
 async function saveClipText() {
   const text = document.getElementById('clipText').value;
+  const isPhone = !isLocalClient;
+  const targetDevice = isPhone ? 'PC' : (currentConnectedPhoneName || 'Phone');
   try {
     const res = await fetch('/api/clipboard', {
       method: 'POST',
@@ -2081,12 +2558,12 @@ async function saveClipText() {
       body: JSON.stringify({ type: 'text', text: text })
     });
     if (res.ok) {
-      showToast('Text copied to PC (Press Ctrl+V on PC)');
+      showToast(isPhone ? 'Text copied to PC (Press Ctrl+V on PC)' : `Text sent to ${targetDevice}`);
     } else {
-      showToast('Failed to send text to PC');
+      showToast(`Failed to send text to ${targetDevice}`);
     }
   } catch (err) {
-    alert('Failed to send');
+    showToast('Failed to send text');
   }
 }
 
@@ -2150,18 +2627,48 @@ function escapeHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function updateThemeUI(theme) {
+  const isDark = theme === 'dark';
+  const label = document.getElementById('themeLabel');
+  // When dark -> clicking switches to Light mode, so label is 'Light'
+  // When light -> clicking switches to Dark mode, so label is 'Dark'
+  if (label) label.innerText = isDark ? 'Light' : 'Dark';
+  const themeBtn = document.getElementById('themeBtn');
+  if (themeBtn) {
+    themeBtn.title = isDark ? 'Switch to Light mode' : 'Switch to Dark mode';
+  }
+  const icon = document.getElementById('themeIcon');
+  if (icon) {
+    if (isDark) {
+      // Dark active: next action is Light (show sun icon)
+      icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+      icon.setAttribute('style', 'fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;');
+    } else {
+      // Light active: next action is Dark (show moon icon)
+      icon.innerHTML = '<path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>';
+      icon.setAttribute('style', 'fill:currentColor;stroke:none;');
+    }
+  }
+}
+
 function toggleTheme() {
   const html = document.documentElement;
-  const cur = html.getAttribute('data-theme');
+  const cur = html.getAttribute('data-theme') || 'light';
   const next = cur === 'dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', next);
   localStorage.setItem('theme', next);
+  updateThemeUI(next);
 }
 
-const savedTheme = localStorage.getItem('theme') || 'dark';
+const savedTheme = localStorage.getItem('theme') || 'light';
 document.documentElement.setAttribute('data-theme', savedTheme);
+updateThemeUI(savedTheme);
 
 window.addEventListener('DOMContentLoaded', () => {
+  const isDesktop = !(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+  if (isDesktop && !localStorage.getItem('hotspot_onboarded')) {
+    openOnboarding(true);
+  }
   updateSliderPosition('upload');
   sendHeartbeatAndPollStatus();
   setInterval(sendHeartbeatAndPollStatus, 2000);

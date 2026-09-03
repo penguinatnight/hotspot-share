@@ -251,6 +251,23 @@ static gboolean on_load_failed(WebKitWebView *web_view, WebKitLoadEvent load_eve
     return FALSE;
 }
 
+static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *decision, WebKitPolicyDecisionType type, gpointer user_data) {
+    if (type == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION || type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) {
+        WebKitNavigationPolicyDecision *nav_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+        WebKitNavigationAction *action = webkit_navigation_policy_decision_get_navigation_action(nav_decision);
+        WebKitURIRequest *request = webkit_navigation_action_get_request(action);
+        const gchar *uri = webkit_uri_request_get_uri(request);
+        if (uri && (g_str_has_prefix(uri, "http://") || g_str_has_prefix(uri, "https://") || g_str_has_prefix(uri, "mailto:"))) {
+            if (!g_str_has_prefix(uri, server_url) && !g_str_has_prefix(uri, "http://127.0.0.1") && !g_str_has_prefix(uri, "http://localhost")) {
+                gtk_show_uri_on_window(GTK_WINDOW(main_window), uri, GDK_CURRENT_TIME, NULL);
+                webkit_policy_decision_ignore(decision);
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
 int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
@@ -278,6 +295,12 @@ int main(int argc, char *argv[]) {
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(main_window), "Hotspot Share");
     gtk_window_set_default_size(GTK_WINDOW(main_window), 980, 860);
+    gtk_widget_set_size_request(main_window, 720, 540);
+    GdkGeometry hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.min_width = 720;
+    hints.min_height = 540;
+    gtk_window_set_geometry_hints(GTK_WINDOW(main_window), NULL, &hints, GDK_HINT_MIN_SIZE);
     gtk_window_set_position(GTK_WINDOW(main_window), GTK_WIN_POS_CENTER);
     gtk_window_set_wmclass(GTK_WINDOW(main_window), "hotspot-share", "hotspot-share");
 
@@ -311,6 +334,7 @@ int main(int argc, char *argv[]) {
 
     GtkWidget *web_view = webkit_web_view_new_with_settings(settings);
     g_signal_connect(web_view, "load-failed", G_CALLBACK(on_load_failed), NULL);
+    g_signal_connect(web_view, "decide-policy", G_CALLBACK(on_decide_policy), NULL);
     
     // Disable stale disk caching so user always sees the latest live UI
     WebKitWebContext *web_context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(web_view));
