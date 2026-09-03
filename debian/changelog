@@ -1,3 +1,12 @@
+hotspot-share (2.0.8-1) unstable; urgency=medium
+
+  * Fix Snap web assets and icon discovery path ($SNAP/usr/share/hotspot-share/web).
+  * Resolve "Web frontend missing" error when running inside confined Snap environments.
+  * Add automated test suite coverage for Snap FHS asset resolution and frontend HTTP serving.
+  * Include web frontend assets in Python packaging data_files.
+
+ -- Hotspot Share Contributors <yeabsrahenok0909@gmail.com>  Thu, 03 Sep 2026 09:10:00 +0300
+
 hotspot-share (2.0.7-1) unstable; urgency=medium
 
   * Redesigned onboarding into a fixed-dimension, graceful tour with zero card jumping.

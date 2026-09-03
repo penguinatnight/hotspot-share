@@ -207,5 +207,38 @@ class TestServer(unittest.TestCase):
             res = json.loads(resp.read().decode("utf-8"))
             self.assertFalse(res["auth_enabled"])
 
+    def test_frontend_assets_served(self):
+        # 1. Index page
+        with urllib.request.urlopen(f"{self.base_url}/") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("text/html", resp.headers.get("Content-Type"))
+            html = resp.read().decode("utf-8")
+            self.assertIn("<!DOCTYPE html>", html)
+            self.assertIn("Hotspot Share", html)
+            self.assertNotIn("Web frontend missing", html)
+            self.assertIn('<div class="tabs-container">', html)
+
+        # 2. Style CSS
+        with urllib.request.urlopen(f"{self.base_url}/style.css") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("text/css", resp.headers.get("Content-Type"))
+            css = resp.read().decode("utf-8")
+            self.assertIn("--text-primary", css)
+
+        # 3. App JS
+        with urllib.request.urlopen(f"{self.base_url}/app.js") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("application/javascript", resp.headers.get("Content-Type"))
+            js = resp.read().decode("utf-8")
+            self.assertIn("function openSecurityModal", js)
+            self.assertIn("function openOnboarding", js)
+
+        # 4. Manifest JSON
+        with urllib.request.urlopen(f"{self.base_url}/manifest.json") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("application/manifest+json", resp.headers.get("Content-Type"))
+            manifest = json.loads(resp.read().decode("utf-8"))
+            self.assertEqual(manifest.get("name"), "Hotspot Share")
+
 if __name__ == "__main__":
     unittest.main()

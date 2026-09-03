@@ -7,8 +7,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from hotspot_share.config import (
     get_runtime_dir, write_runtime_info, read_runtime_info,
-    clear_runtime_info, get_default_share_dir, get_web_dir
+    clear_runtime_info, get_default_share_dir, get_web_dir, get_icon_file
 )
+import tempfile
+import shutil
 
 class TestConfig(unittest.TestCase):
     def test_runtime_dir_security(self):
@@ -41,6 +43,85 @@ class TestConfig(unittest.TestCase):
         web_dir = get_web_dir()
         self.assertTrue(web_dir.exists())
         self.assertTrue((web_dir / "index.html").exists())
+
+    def test_get_web_dir_snap_usr_share(self):
+        tmp_snap = tempfile.mkdtemp(prefix="snap_test_")
+        try:
+            fake_web = Path(tmp_snap) / "usr" / "share" / "hotspot-share" / "web"
+            fake_web.mkdir(parents=True)
+            (fake_web / "index.html").write_text("<!DOCTYPE html><html><body>Snap Web</body></html>")
+
+            old_snap = os.environ.get("SNAP")
+            os.environ["SNAP"] = tmp_snap
+            try:
+                resolved = get_web_dir()
+                self.assertEqual(resolved, fake_web)
+                self.assertTrue((resolved / "index.html").exists())
+            finally:
+                if old_snap is not None:
+                    os.environ["SNAP"] = old_snap
+                else:
+                    os.environ.pop("SNAP", None)
+        finally:
+            shutil.rmtree(tmp_snap)
+
+    def test_get_web_dir_snap_share(self):
+        tmp_snap = tempfile.mkdtemp(prefix="snap_test_")
+        try:
+            fake_web = Path(tmp_snap) / "share" / "hotspot-share" / "web"
+            fake_web.mkdir(parents=True)
+            (fake_web / "index.html").write_text("<!DOCTYPE html><html><body>Snap Share Web</body></html>")
+
+            old_snap = os.environ.get("SNAP")
+            os.environ["SNAP"] = tmp_snap
+            try:
+                resolved = get_web_dir()
+                self.assertEqual(resolved, fake_web)
+                self.assertTrue((resolved / "index.html").exists())
+            finally:
+                if old_snap is not None:
+                    os.environ["SNAP"] = old_snap
+                else:
+                    os.environ.pop("SNAP", None)
+        finally:
+            shutil.rmtree(tmp_snap)
+
+    def test_get_web_dir_env_override(self):
+        tmp_env = tempfile.mkdtemp(prefix="env_web_")
+        try:
+            fake_web = Path(tmp_env) / "custom_web"
+            fake_web.mkdir(parents=True)
+            (fake_web / "index.html").write_text("<!DOCTYPE html><html><body>Custom Web</body></html>")
+
+            os.environ["HOTSPOT_WEB_DIR"] = str(fake_web)
+            try:
+                resolved = get_web_dir()
+                self.assertEqual(resolved, fake_web)
+            finally:
+                os.environ.pop("HOTSPOT_WEB_DIR", None)
+        finally:
+            shutil.rmtree(tmp_env)
+
+    def test_get_icon_file_snap(self):
+        tmp_snap = tempfile.mkdtemp(prefix="snap_icon_")
+        try:
+            icon_dir = Path(tmp_snap) / "usr" / "share" / "icons" / "hicolor" / "512x512" / "apps"
+            icon_dir.mkdir(parents=True)
+            fake_png = icon_dir / "hotspot-share.png"
+            fake_png.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+            old_snap = os.environ.get("SNAP")
+            os.environ["SNAP"] = tmp_snap
+            try:
+                resolved = get_icon_file(512, "png")
+                self.assertEqual(resolved, fake_png)
+            finally:
+                if old_snap is not None:
+                    os.environ["SNAP"] = old_snap
+                else:
+                    os.environ.pop("SNAP", None)
+        finally:
+            shutil.rmtree(tmp_snap)
 
 if __name__ == "__main__":
     unittest.main()

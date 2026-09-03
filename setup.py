@@ -1,12 +1,18 @@
+from pathlib import Path
 from setuptools import setup, find_packages
+
+web_files = [str(p) for p in Path("web").glob("*") if p.is_file()]
 
 setup(
     name="hotspot-share",
-    version="2.0.7",
+    version="2.0.8",
     description="High-Speed Local Wi-Fi File Sharing & Multimodal Clipboard Sync",
     author="Yeabsra Henok", author_email="yeabsrahenok0909@gmail.com", url="https://github.com/penguinatnight/hotspot-share",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    data_files=[
+        ("share/hotspot-share/web", web_files),
+    ],
     entry_points={
         "console_scripts": [
             "hotspot-share = hotspot_share.cli:main",
