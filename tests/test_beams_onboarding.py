@@ -354,8 +354,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.4", html)
-        self.assertIn("hotspot-share-v2.1.4", sw_js)
+        self.assertIn("v=2.1.5", html)
+        self.assertIn("hotspot-share-v2.1.5", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)
@@ -446,12 +446,13 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn('btn-onboard-skip-top', css)
 
         # 4. Zoom and pinch prevention across GUI C and Web frontend
-        self.assertIn('on_webview_scroll', gui_c)
+        self.assertIn('on_webview_event', gui_c)
+        self.assertIn('GDK_TOUCHPAD_GESTURE_MASK', gui_c)
         self.assertIn('notify::zoom-level', gui_c)
         self.assertIn('webkit_web_view_set_zoom_level', gui_c)
-        self.assertIn("overscroll-behavior: none", css)
-        self.assertIn("touch-action: pan-x pan-y", css)
+        self.assertIn("touch-action: pan-y !important;", css)
         self.assertIn("window.addEventListener('wheel'", js)
+        self.assertIn("window.addEventListener('touchmove'", js)
         self.assertIn("window.addEventListener('gesturestart'", js)
 
         # 5. Desktop keyboard shortcuts
@@ -495,10 +496,35 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         # 6. Valid HTML nesting for security-wrapper
         self.assertIn('</div>\n    </div>\n  </section>', html)
 
-        # 7. Desktop keyboard shortcuts hidden on mobile web
+        # 7. Desktop keyboard shortcuts and tour button hidden on mobile web
         self.assertIn("about-shortcuts-card", html)
         self.assertIn(".about-shortcuts-card", css)
-        self.assertIn("updateMobileShortcutsVisibility", js)
+        self.assertIn("about-reopen-tour-btn", html)
+        self.assertIn(".about-reopen-tour-btn", css)
+        self.assertIn("updateMobileAboutVisibility", js)
+
+    def test_unpair_and_disconnect_graceful_confirmation(self):
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        js = Path("web/app.js").read_text(encoding="utf-8")
+        css = Path("web/style.css").read_text(encoding="utf-8")
+        auth_py = Path("src/hotspot_share/auth.py").read_text(encoding="utf-8")
+        server_py = Path("src/hotspot_share/server.py").read_text(encoding="utf-8")
+
+        # 1. Backend revoke_session and clean disconnect
+        self.assertIn("def revoke_session(cls, client_ip: str", auth_py)
+        self.assertIn("AuthManager.revoke_session", server_py)
+        self.assertNotIn("DeviceTracker.phones.clear()", server_py)
+
+        # 2. In-card graceful confirmation markup and styling
+        self.assertIn('id="secUnpairConfirmCard"', html)
+        self.assertIn('.sec-unpair-confirm-card', css)
+        self.assertIn('.btn-danger', css)
+
+        # 3. No native browser confirm dialogs for unpair/disconnect
+        self.assertNotIn("confirm('Disconnect", js)
+        self.assertIn("promptUnpairPhoneSession", js)
+        self.assertIn("promptDisconnectAllDevices", js)
+        self.assertIn("executeConfirmedUnpair", js)
 
 if __name__ == "__main__":
     unittest.main()

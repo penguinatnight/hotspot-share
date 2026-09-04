@@ -10,7 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/style.css?v=2.1.4">
+<link rel="stylesheet" href="/style.css?v=2.1.5">
 <script>
   try {
     const savedTheme = localStorage.getItem('theme') || 'light';
@@ -305,6 +305,29 @@
           </div>
         </div>
 
+        <!-- Graceful In-Card Confirmation for Phone Unpairing and Desktop Disconnect -->
+        <div id="secUnpairConfirmCard" class="sec-unpair-confirm-card" style="display:none;">
+          <div class="sec-unpair-confirm-header">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span id="secUnpairConfirmTitle">Revoke Device Pairing</span>
+          </div>
+          <p id="secUnpairConfirmText" class="sec-unpair-confirm-desc">
+            Are you sure you want to unpair from this PC? You will need to enter the 8-digit PIN displayed on your PC to reconnect.
+          </p>
+          <div class="sec-unpair-confirm-actions">
+            <button type="button" class="btn-secondary sec-unpair-btn" onclick="cancelUnpairConfirmation()">
+              Cancel
+            </button>
+            <button type="button" class="btn-danger sec-unpair-btn" id="btnConfirmUnpairAction" onclick="executeConfirmedUnpair()">
+              Unpair Device
+            </button>
+          </div>
+        </div>
+
         <!-- Active PIN Display (Visible when enabled) -->
         <div id="secActivePinBox" class="sec-active-pin-box" style="display:none;">
           <div class="sec-pin-label">Active Pairing PIN</div>
@@ -319,7 +342,7 @@
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 <span>Regenerate</span>
               </button>
-              <button class="btn-secondary" onclick="disconnectAllDevices()" title="Disconnect paired devices and regenerate PIN">
+              <button class="btn-secondary" onclick="promptDisconnectAllDevices()" title="Disconnect paired devices and regenerate PIN">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
                 </svg>
@@ -348,7 +371,7 @@
         </div>
         <div class="about-header-meta">
           <h1 class="about-app-title">Hotspot Share</h1>
-          <div class="about-version-text">Version 2.0.14</div>
+          <div class="about-version-text">Version 2.0.15</div>
           <p class="about-app-tagline">High-Performance Local Wi-Fi File Sharing &amp; Multimodal Sync</p>
         </div>
       </div>
@@ -408,7 +431,7 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
             <span>GitHub Repository</span>
           </button>
-          <button type="button" class="btn-secondary about-action-btn" onclick="openOnboarding(true)">
+          <button type="button" class="btn-secondary about-action-btn about-reopen-tour-btn" onclick="openOnboarding(true)">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>Re-open Tour</span>
           </button>
@@ -662,6 +685,6 @@
 </div>
 </div>
 
-<script src="/app.js?v=2.1.4"></script>
+<script src="/app.js?v=2.1.5"></script>
 </body>
 </html>

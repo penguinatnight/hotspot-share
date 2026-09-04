@@ -2825,19 +2825,91 @@ kbd {
     border-radius: 14px !important;
   }
 
-  /* Completely hide desktop-only keyboard shortcuts on mobile screens */
+  /* Completely hide desktop-only keyboard shortcuts and tour button on mobile screens */
   .about-shortcuts-card,
-  .shortcuts-grid {
+  .shortcuts-grid,
+  .about-reopen-tour-btn {
     display: none !important;
   }
 }
 
-/* Hide desktop keyboard shortcuts on touch devices */
+/* Hide desktop keyboard shortcuts and tour button on touch devices */
 @media (pointer: coarse) and (hover: none) {
   .about-shortcuts-card,
-  .shortcuts-grid {
+  .shortcuts-grid,
+  .about-reopen-tour-btn {
     display: none !important;
   }
+}
+
+/* Enforce zoom prevention on desktop browser/WebKit views */
+@media (min-width: 769px) {
+  html, body {
+    touch-action: pan-y !important;
+    overscroll-behavior: none !important;
+  }
+}
+
+/* Graceful In-Card Confirmation */
+.sec-unpair-confirm-card {
+  margin-top: 14px;
+  padding: 16px 18px;
+  background: rgba(255, 69, 58, 0.08);
+  border: 1px solid rgba(255, 69, 58, 0.25);
+  border-radius: 14px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.sec-unpair-confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger, #ff453a);
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.sec-unpair-confirm-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+.sec-unpair-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.sec-unpair-btn {
+  min-height: 38px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-danger {
+  background: var(--danger, #ff453a) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.btn-danger:active {
+  transform: scale(0.98);
 }
 
 

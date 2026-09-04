@@ -40,6 +40,17 @@ class AuthManager:
             return cls.pin_code
 
     @classmethod
+    def revoke_session(cls, client_ip: str, token: str = ""):
+        with cls._lock:
+            if token and token in cls.authorized_tokens:
+                cls.authorized_tokens.pop(token, None)
+            # Purge any tokens associated with this IP
+            tokens_to_remove = [t for t, entry in cls.authorized_tokens.items() if entry.get('ip') == client_ip]
+            for t in tokens_to_remove:
+                cls.authorized_tokens.pop(t, None)
+            cls.authorized_ips.pop(client_ip, None)
+
+    @classmethod
     def get_formatted_pin(cls) -> str:
         if len(cls.pin_code) == 8:
             return f"{cls.pin_code[:4]} {cls.pin_code[4:]}"

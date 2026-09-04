@@ -355,6 +355,32 @@ static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *
     return FALSE;
 }
 
+static gboolean on_webview_event(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
+    if (event->type == GDK_TOUCHPAD_PINCH) {
+        // Prevent trackpad pinch-to-zoom gesture completely
+        return TRUE;
+    }
+    if (event->type == GDK_SCROLL) {
+        GdkEventScroll *scroll = (GdkEventScroll *)event;
+        if (scroll->state & GDK_CONTROL_MASK) {
+            // Prevent Ctrl+scroll zoom
+            return TRUE;
+        }
+    }
+    if (event->type == GDK_KEY_PRESS) {
+        GdkEventKey *key = (GdkEventKey *)event;
+        if (key->state & GDK_CONTROL_MASK) {
+            if (key->keyval == GDK_KEY_plus || key->keyval == GDK_KEY_equal ||
+                key->keyval == GDK_KEY_minus || key->keyval == GDK_KEY_underscore ||
+                key->keyval == GDK_KEY_0 || key->keyval == GDK_KEY_KP_Add ||
+                key->keyval == GDK_KEY_KP_Subtract || key->keyval == GDK_KEY_KP_0) {
+                return TRUE; // Block Ctrl+zoom keyboard shortcuts
+            }
+        }
+    }
+    return FALSE;
+}
+
 static gboolean on_webview_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data) {
     if (event->state & GDK_CONTROL_MASK) {
         // Prevent trackpad Ctrl+scroll pinch zoom
@@ -364,9 +390,13 @@ static gboolean on_webview_scroll(GtkWidget *widget, GdkEventScroll *event, gpoi
 }
 
 static void on_webview_zoom_level_changed(WebKitWebView *web_view, GParamSpec *pspec, gpointer user_data) {
+    static gboolean in_reset = FALSE;
+    if (in_reset) return;
     double level = webkit_web_view_get_zoom_level(web_view);
     if (level != 1.0) {
+        in_reset = TRUE;
         webkit_web_view_set_zoom_level(web_view, 1.0);
+        in_reset = FALSE;
     }
 }
 
@@ -440,7 +470,8 @@ int main(int argc, char *argv[]) {
     
     // Enforce fixed 1.0 zoom level and block trackpad pinch zoom for native desktop feel
     webkit_web_view_set_zoom_level(WEBKIT_WEB_VIEW(web_view), 1.0);
-    gtk_widget_add_events(web_view, GDK_SCROLL_MASK);
+    gtk_widget_add_events(web_view, GDK_SCROLL_MASK | GDK_TOUCHPAD_GESTURE_MASK | GDK_TOUCH_MASK | GDK_KEY_PRESS_MASK);
+    g_signal_connect(web_view, "event", G_CALLBACK(on_webview_event), NULL);
     g_signal_connect(web_view, "scroll-event", G_CALLBACK(on_webview_scroll), NULL);
     g_signal_connect(web_view, "notify::zoom-level", G_CALLBACK(on_webview_zoom_level_changed), NULL);
     

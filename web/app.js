@@ -317,10 +317,11 @@ async function getPhoneStorageInfo() {
   return null;
 }
 
-let currentServerAuthEnabled = false;
-let currentServerPin = "";
+let currentClientIsAuthed = false;
+let pendingUnpairAction = null;
 
 async function renderSecuritySection() {
+  let isAuthed = false;
   try {
     const res = await fetch('/api/status?_t=' + Date.now(), { headers: authHeaders() });
     const data = await res.json();
@@ -328,6 +329,8 @@ async function renderSecuritySection() {
     currentServerPin = data.pin_code || "";
     isLocalClient = !!data.is_local_client;
     pcHostName = data.pc_name || 'PC';
+    isAuthed = isLocalClient || !!data.is_authenticated || !data.auth_enabled;
+    currentClientIsAuthed = isAuthed;
   } catch (e) {}
 
   const isEnabled = currentServerAuthEnabled;
@@ -336,15 +339,27 @@ async function renderSecuritySection() {
     ? `${currentServerPin.slice(0, 4)} ${currentServerPin.slice(4)}`
     : (currentServerPin || '--------');
 
+  cancelUnpairConfirmation();
+
   // Update Status Badge on Tab
   const statusBadge = document.getElementById('secStatusBadge');
   if (statusBadge) {
-    if (isEnabled) {
-      statusBadge.className = 'sec-status-badge is-active';
-      statusBadge.innerText = 'Protected';
+    if (isPhone) {
+      if (isAuthed) {
+        statusBadge.className = 'sec-status-badge is-active';
+        statusBadge.innerText = 'Protected';
+      } else {
+        statusBadge.className = 'sec-status-badge is-disabled';
+        statusBadge.innerText = 'Not Paired';
+      }
     } else {
-      statusBadge.className = 'sec-status-badge is-disabled';
-      statusBadge.innerText = 'Disabled';
+      if (isEnabled) {
+        statusBadge.className = 'sec-status-badge is-active';
+        statusBadge.innerText = 'Protected';
+      } else {
+        statusBadge.className = 'sec-status-badge is-disabled';
+        statusBadge.innerText = 'Disabled';
+      }
     }
   }
 
@@ -356,29 +371,33 @@ async function renderSecuritySection() {
 
   if (isPhone) {
     if (toggleTitle) {
-      toggleTitle.innerText = isEnabled
+      toggleTitle.innerText = isAuthed
         ? `Protected by ${pcHostName}`
-        : `Connected to ${pcHostName}`;
+        : `Unpaired from ${pcHostName}`;
     }
     if (toggleDesc) {
-      toggleDesc.innerText = isEnabled
+      toggleDesc.innerText = isAuthed
         ? `Your phone is paired and verified with ${pcHostName}. Direct Wi-Fi transfers and clipboard are secured.`
-        : `PIN protection is disabled on ${pcHostName}. Anyone on this Wi-Fi can transfer files.`;
+        : `Enter the 8-digit PIN displayed on ${pcHostName} to pair this phone.`;
     }
     if (oneSentence) {
-      oneSentence.innerText = isEnabled
+      oneSentence.innerText = isAuthed
         ? 'This phone session is authenticated with 8-digit PIN protection.'
-        : 'Connected over local Wi-Fi without PIN protection.';
+        : 'Session is unauthenticated. PIN entry is required to share files.';
     }
     if (btnContainer) {
-      if (isEnabled) {
+      if (isAuthed) {
         btnContainer.innerHTML = `
-          <button class="btn-secondary" id="btnUnpairPhone" onclick="unpairPhoneSession()">
+          <button class="btn-secondary" id="btnUnpairPhone" onclick="promptUnpairPhoneSession()">
             Unpair Device
           </button>
         `;
       } else {
-        btnContainer.innerHTML = '';
+        btnContainer.innerHTML = `
+          <button class="btn-primary" id="btnPairPhone" onclick="showPinAuthScreen()">
+            Pair with PIN
+          </button>
+        `;
       }
     }
     if (activePinBox) {
@@ -424,8 +443,58 @@ async function renderSecuritySection() {
   }
 }
 
-async function unpairPhoneSession() {
-  if (!confirm('Disconnect and revoke pairing? You will need to enter the 8-digit PIN again to reconnect.')) return;
+function promptUnpairPhoneSession() {
+  pendingUnpairAction = 'phone';
+  const card = document.getElementById('secUnpairConfirmCard');
+  const title = document.getElementById('secUnpairConfirmTitle');
+  const desc = document.getElementById('secUnpairConfirmText');
+  const confirmBtn = document.getElementById('btnConfirmUnpairAction');
+  if (title) title.innerText = 'Revoke Device Pairing';
+  if (desc) desc.innerText = `Are you sure you want to unpair from ${pcHostName}? You will need to enter the 8-digit PIN displayed on your PC to reconnect.`;
+  if (confirmBtn) {
+    confirmBtn.innerText = 'Unpair Device';
+  }
+  if (card) {
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function promptDisconnectAllDevices() {
+  pendingUnpairAction = 'desktop_all';
+  const card = document.getElementById('secUnpairConfirmCard');
+  const title = document.getElementById('secUnpairConfirmTitle');
+  const desc = document.getElementById('secUnpairConfirmText');
+  const confirmBtn = document.getElementById('btnConfirmUnpairAction');
+  if (title) title.innerText = 'Disconnect All Devices';
+  if (desc) desc.innerText = 'Disconnect currently paired mobile devices and generate a new 8-digit sharing code?';
+  if (confirmBtn) {
+    confirmBtn.innerText = 'Disconnect All';
+  }
+  if (card) {
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function cancelUnpairConfirmation() {
+  pendingUnpairAction = null;
+  const card = document.getElementById('secUnpairConfirmCard');
+  if (card) card.style.display = 'none';
+}
+
+async function executeConfirmedUnpair() {
+  const card = document.getElementById('secUnpairConfirmCard');
+  if (card) card.style.display = 'none';
+  if (pendingUnpairAction === 'phone') {
+    await executeUnpairPhoneSession();
+  } else if (pendingUnpairAction === 'desktop_all') {
+    await executeDisconnectAllDevices();
+  }
+  pendingUnpairAction = null;
+}
+
+async function executeUnpairPhoneSession() {
   try {
     await fetch('/api/auth/disconnect', {
       method: 'POST',
@@ -435,13 +504,13 @@ async function unpairPhoneSession() {
   } catch (e) {}
   authToken = '';
   localStorage.removeItem('hotspot_share_token');
-  showToast('Disconnected & sharing code revoked');
+  showToast('Unpaired from PC');
   showPinAuthScreen();
   await sendHeartbeatAndPollStatus();
+  renderSecuritySection();
 }
 
-async function disconnectAllDevices() {
-  if (!confirm('Disconnect paired mobile devices and generate a new 8-digit sharing code?')) return;
+async function executeDisconnectAllDevices() {
   try {
     const res = await fetch('/api/auth/disconnect', {
       method: 'POST',
@@ -458,8 +527,17 @@ async function disconnectAllDevices() {
       showToast('Failed to disconnect: ' + (data.message || 'Error'));
     }
   } catch (e) {
-    showToast('Failed to disconnect: ' + e.message);
+    showToast('Disconnect error');
   }
+}
+
+// Backward-compatible wrappers
+async function unpairPhoneSession() {
+  promptUnpairPhoneSession();
+}
+
+async function disconnectAllDevices() {
+  promptDisconnectAllDevices();
 }
 
 function copyActivePin() {
@@ -734,16 +812,27 @@ function dismissPwaBanner() {
   if (banner) banner.style.display = 'none';
 }
 
-function updateMobileShortcutsVisibility() {
+function updateMobileAboutVisibility() {
+  const isMobile = isMobileClient();
   const shortcutsCard = document.querySelector('.about-shortcuts-card');
   if (shortcutsCard) {
-    if (isMobileClient()) {
+    if (isMobile) {
       shortcutsCard.style.setProperty('display', 'none', 'important');
     } else {
       shortcutsCard.style.removeProperty('display');
     }
   }
+  const tourBtn = document.querySelector('.about-reopen-tour-btn');
+  if (tourBtn) {
+    if (isMobile) {
+      tourBtn.style.setProperty('display', 'none', 'important');
+    } else {
+      tourBtn.style.removeProperty('display');
+    }
+  }
 }
+
+const updateMobileShortcutsVisibility = updateMobileAboutVisibility;
 
 async function triggerPwaInstall() {
   if (deferredPwaPrompt) {
@@ -962,9 +1051,19 @@ async function sendHeartbeatAndPollStatus() {
     } else {
       // Phone View - immediately dismiss onboarding
       document.documentElement.classList.remove('init-onboarding');
-      beacon.className = 'beacon-dot connected';
+      const isAuthed = data.is_authenticated || (!data.auth_enabled && !data.auth_required);
       const myDisplayName = (hw.model !== 'Linux Desktop' && hw.model !== 'Windows PC' && hw.model !== 'Apple Mac' ? hw.model : '') || 'Phone';
-      deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
+
+      if (isAuthed) {
+        beacon.className = 'beacon-dot connected';
+        deviceLabel.innerText = `${myDisplayName} ⇄ ${pcHostName}`;
+        hidePinAuthScreen();
+      } else {
+        beacon.className = 'beacon-dot';
+        deviceLabel.innerText = `${myDisplayName} • Not Paired`;
+        showPinAuthScreen();
+      }
+
       qrCard.style.display = 'none';
 
       // Always hide tour button and onboarding modal on phones
@@ -978,6 +1077,7 @@ async function sendHeartbeatAndPollStatus() {
       if (overlay) overlay.style.display = 'none';
 
       updatePwaInstallVisibility();
+      updateMobileAboutVisibility();
 
       const btnFiles = document.getElementById('btnSelectFiles');
       const btnFolder = document.getElementById('btnSelectFolder');
@@ -985,22 +1085,39 @@ async function sendHeartbeatAndPollStatus() {
       const dzSub = document.getElementById('dropzoneSubtitle');
       const dropzoneEl = document.getElementById('dropzone');
 
-      if (dropzoneEl) dropzoneEl.classList.remove('waiting-for-phone');
-
-      if (btnFiles) {
-        btnFiles.disabled = false;
-        btnFiles.style.opacity = '1';
-        btnFiles.style.cursor = 'pointer';
-        btnFiles.innerText = 'Send Files to ' + pcHostName;
+      if (isAuthed) {
+        if (dropzoneEl) dropzoneEl.classList.remove('waiting-for-phone');
+        if (btnFiles) {
+          btnFiles.disabled = false;
+          btnFiles.style.opacity = '1';
+          btnFiles.style.cursor = 'pointer';
+          btnFiles.innerText = 'Send Files to ' + pcHostName;
+        }
+        if (btnFolder) {
+          btnFolder.disabled = false;
+          btnFolder.style.opacity = '1';
+          btnFolder.style.cursor = 'pointer';
+          btnFolder.innerText = 'Send Photos / Folder to ' + pcHostName;
+        }
+        if (dzTitle) dzTitle.innerText = 'Send files or photos to ' + pcHostName;
+        if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Transfer • Saves to Desktop/from-phone on ' + pcHostName;
+      } else {
+        if (dropzoneEl) dropzoneEl.classList.add('waiting-for-phone');
+        if (btnFiles) {
+          btnFiles.disabled = true;
+          btnFiles.style.opacity = '0.55';
+          btnFiles.style.cursor = 'not-allowed';
+          btnFiles.innerText = 'Pair with PIN to Send Files';
+        }
+        if (btnFolder) {
+          btnFolder.disabled = true;
+          btnFolder.style.opacity = '0.55';
+          btnFolder.style.cursor = 'not-allowed';
+          btnFolder.innerText = 'Pair with PIN to Send Photos';
+        }
+        if (dzTitle) dzTitle.innerText = 'PIN Authentication Required';
+        if (dzSub) dzSub.innerText = `Enter the 8-digit PIN displayed on ${pcHostName} to pair`;
       }
-      if (btnFolder) {
-        btnFolder.disabled = false;
-        btnFolder.style.opacity = '1';
-        btnFolder.style.cursor = 'pointer';
-        btnFolder.innerText = 'Send Photos / Folder to ' + pcHostName;
-      }
-      if (dzTitle) dzTitle.innerText = 'Send files or photos to ' + pcHostName;
-      if (dzSub) dzSub.innerText = 'Direct Wi-Fi 6 Transfer • Saves to Desktop/from-phone on ' + pcHostName;
 
       if (phoneStorage && phoneStorage.total_bytes > 0) {
         diskText.innerText = 'Phone: ' + phoneStorage.free_str + ' free | PC: ' + (data.pc_disk ? data.pc_disk.free_str + ' free' : '');
@@ -1580,7 +1697,7 @@ function switchTab(tabId) {
     loadClip();
   }
   if (tabId === 'security') renderSecuritySection();
-  if (tabId === 'about') updateMobileShortcutsVisibility();
+  if (tabId === 'about') updateMobileAboutVisibility();
 }
 
 async function manualRefresh() {
@@ -2715,9 +2832,15 @@ if (isDesktopClient) {
     }
   }, { passive: false });
 
-  window.addEventListener('gesturestart', (e) => e.preventDefault());
-  window.addEventListener('gesturechange', (e) => e.preventDefault());
-  window.addEventListener('gestureend', (e) => e.preventDefault());
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  window.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+  window.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+  window.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
 
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === '0')) {
@@ -2729,7 +2852,7 @@ if (isDesktopClient) {
 // Keep active tab indicator aligned on screen resize and orientation changes
 window.addEventListener('resize', () => {
   updateSliderPosition(activeTabId);
-  updateMobileShortcutsVisibility();
+  updateMobileAboutVisibility();
 });
 
 // ==========================================

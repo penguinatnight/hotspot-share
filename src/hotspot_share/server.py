@@ -673,7 +673,8 @@ class HotspotHandler(BaseHTTPRequestHandler):
             elif action in ('disconnect', 'revoke'):
                 with AuthManager._lock:
                     pin = AuthManager.regenerate_pin()
-                    DeviceTracker.phones.clear()
+                with DeviceTracker._lock:
+                    DeviceTracker.active_sessions.clear()
                 print(f" \033[90m{t_stamp}\033[0m  \033[33m[DISCONNECT]\033[0m All paired devices revoked & disconnected. New PIN: {AuthManager.get_formatted_pin()}")
                 self.send_json({'status': 'ok', 'auth_enabled': True, 'pin_code': pin, 'formatted_pin': AuthManager.get_formatted_pin(), 'disconnected': True})
             elif action == 'set_pin':
@@ -688,19 +689,36 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/auth/disconnect':
-            # Disconnect all connected devices and revoke sharing code (generate a new 8-digit PIN)
-            with AuthManager._lock:
+            client_ip = self.client_address[0]
+            auth_header = self.headers.get('Authorization', '')
+            token = auth_header[7:].strip() if auth_header.startswith('Bearer ') else self.headers.get('X-Auth-Token', '').strip()
+
+            if self.is_client_local():
+                # Disconnect all connected devices and revoke sharing code (generate a new 8-digit PIN)
                 new_pin = AuthManager.regenerate_pin()
-                DeviceTracker.phones.clear()
-            formatted = AuthManager.get_formatted_pin()
-            print(f" \033[90m{t_stamp}\033[0m  \033[33m[DISCONNECT]\033[0m All paired sessions terminated. New PIN: {formatted}")
-            self.send_json({
-                'status': 'ok',
-                'disconnected': True,
-                'pin_code': new_pin if self.is_client_local() else "",
-                'formatted_pin': formatted if self.is_client_local() else "",
-                'message': 'All devices disconnected and PIN revoked. A new 8-digit PIN has been generated.'
-            })
+                with DeviceTracker._lock:
+                    DeviceTracker.active_sessions.clear()
+                formatted = AuthManager.get_formatted_pin()
+                print(f" \033[90m{t_stamp}\033[0m  \033[33m[DISCONNECT]\033[0m All paired sessions terminated. New PIN: {formatted}")
+                self.send_json({
+                    'status': 'ok',
+                    'disconnected': True,
+                    'pin_code': new_pin,
+                    'formatted_pin': formatted,
+                    'message': 'All devices disconnected and PIN revoked. A new 8-digit PIN has been generated.'
+                })
+            else:
+                # Phone unpairs its own session
+                AuthManager.revoke_session(client_ip, token)
+                with DeviceTracker._lock:
+                    DeviceTracker.active_sessions.pop(client_ip, None)
+                print(f" \033[90m{t_stamp}\033[0m  \033[33m[UNPAIR]\033[0m Device at {client_ip} revoked pairing session")
+                self.send_json({
+                    'status': 'ok',
+                    'disconnected': True,
+                    'unpaired': True,
+                    'message': 'Session disconnected and pairing revoked.'
+                })
             return
 
         # Check authentication for remaining endpoints

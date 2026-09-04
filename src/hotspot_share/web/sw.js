@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hotspot-share-v2.1.4';
+const CACHE_NAME = 'hotspot-share-v2.1.5';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
