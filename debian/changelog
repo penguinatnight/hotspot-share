@@ -1,3 +1,13 @@
+hotspot-share (2.0.11-1) unstable; urgency=medium
+
+  * Convert About section into a dedicated tab section (no modal / iOS look).
+  * Professional, understated desktop version typography (no colorful badge/gradients).
+  * Add immediate "Skip" button to onboarding tour.
+  * Disable trackpad pinch zoom and browser zoom gestures for native desktop feel.
+  * Add comprehensive native desktop keyboard shortcuts (Alt+1..5, Ctrl+O/D/F/T/R/Enter).
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 13:30:00 +0300
+
 hotspot-share (2.0.10-1) unstable; urgency=medium
 
   * Add deep health-check to GUI launcher to verify HTTP 200 frontend response.

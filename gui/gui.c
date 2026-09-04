@@ -355,6 +355,21 @@ static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *
     return FALSE;
 }
 
+static gboolean on_webview_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data) {
+    if (event->state & GDK_CONTROL_MASK) {
+        // Prevent trackpad Ctrl+scroll pinch zoom
+        return TRUE;
+    }
+    return FALSE;
+}
+
+static void on_webview_zoom_level_changed(WebKitWebView *web_view, GParamSpec *pspec, gpointer user_data) {
+    double level = webkit_web_view_get_zoom_level(web_view);
+    if (level != 1.0) {
+        webkit_web_view_set_zoom_level(web_view, 1.0);
+    }
+}
+
 int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
@@ -422,6 +437,12 @@ int main(int argc, char *argv[]) {
     GtkWidget *web_view = webkit_web_view_new_with_settings(settings);
     g_signal_connect(web_view, "load-failed", G_CALLBACK(on_load_failed), NULL);
     g_signal_connect(web_view, "decide-policy", G_CALLBACK(on_decide_policy), NULL);
+    
+    // Enforce fixed 1.0 zoom level and block trackpad pinch zoom for native desktop feel
+    webkit_web_view_set_zoom_level(WEBKIT_WEB_VIEW(web_view), 1.0);
+    gtk_widget_add_events(web_view, GDK_SCROLL_MASK);
+    g_signal_connect(web_view, "scroll-event", G_CALLBACK(on_webview_scroll), NULL);
+    g_signal_connect(web_view, "notify::zoom-level", G_CALLBACK(on_webview_zoom_level_changed), NULL);
     
     // Disable stale disk caching so user always sees the latest live UI
     WebKitWebContext *web_context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(web_view));

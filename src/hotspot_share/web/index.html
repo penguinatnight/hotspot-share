@@ -51,13 +51,17 @@
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       <span>Security</span>
     </button>
+    <button class="tab-btn" id="btn-about" onclick="switchTab('about')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span>About</span>
+    </button>
   </div>
   <div class="header-actions">
     <button class="btn-theme" onclick="switchTab('security')" id="securityBtn" title="Security & 8-Digit PIN Settings">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       <span class="btn-label">Security</span>
     </button>
-    <button class="btn-theme" onclick="openAboutModal()" id="aboutBtn" title="About Hotspot Share">
+    <button class="btn-theme" onclick="switchTab('about')" id="aboutBtn" title="About Hotspot Share">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
       <span class="btn-label">About</span>
     </button>
@@ -341,6 +345,83 @@
         </div>
       </div>
 
+  </section>
+
+  <!-- TAB 5: ABOUT SECTION -->
+  <section id="tab-about" class="tab-content">
+    <div class="about-section-container">
+      <div class="about-header-card">
+        <div class="about-logo-wrapper">
+          <img src="/icon.svg" class="about-app-logo" alt="Hotspot Share Logo" onerror="this.src='data:image/png;base64,__ICON_BASE64__'">
+        </div>
+        <div class="about-header-meta">
+          <h1 class="about-app-title">Hotspot Share</h1>
+          <div class="about-version-text">Version 2.0.11</div>
+          <p class="about-app-tagline">High-Performance Local Wi-Fi File Sharing &amp; Multimodal Sync</p>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <h3 class="about-card-title">Overview</h3>
+        <p class="about-description">
+          Hotspot Share is a zero-cloud, privacy-first peer-to-peer file sharing and synchronization suite designed for Linux desktops and smartphones.
+          Transfer large files and directories at full Wi-Fi link speeds via a direct 8MB chunked transfer engine, and seamlessly sync clipboard text and images between your devices—with zero cloud telemetry, zero account logins, and zero phone apps to install.
+        </p>
+      </div>
+
+      <div class="about-card">
+        <h3 class="about-card-title">System &amp; Specifications</h3>
+        <div class="about-specs-grid">
+          <div class="about-spec-item">
+            <span class="about-spec-label">Maintainer</span>
+            <span class="about-spec-val">penguinatnight</span>
+          </div>
+          <div class="about-spec-item">
+            <span class="about-spec-label">Contact</span>
+            <a href="mailto:penguinatnight1@gmail.com" onclick="openExternalUrl('mailto:penguinatnight1@gmail.com'); return false;" class="about-spec-link">penguinatnight1@gmail.com</a>
+          </div>
+          <div class="about-spec-item">
+            <span class="about-spec-label">License</span>
+            <span class="about-spec-val">GPL-3.0 (Open Source)</span>
+          </div>
+          <div class="about-spec-item">
+            <span class="about-spec-label">Architecture</span>
+            <span class="about-spec-val">Python 3 + WebKitGTK</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <h3 class="about-card-title">Keyboard Shortcuts</h3>
+        <div class="shortcuts-grid">
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Alt</kbd>+<kbd>1</kbd></span><span class="shortcut-desc">Upload &amp; Transfer Tab</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Alt</kbd>+<kbd>2</kbd></span><span class="shortcut-desc">Files Explorer Tab</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Alt</kbd>+<kbd>3</kbd></span><span class="shortcut-desc">Clipboard Sync Tab</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Alt</kbd>+<kbd>4</kbd></span><span class="shortcut-desc">Security &amp; PIN Settings</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Alt</kbd>+<kbd>5</kbd></span><span class="shortcut-desc">About &amp; System Info</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>O</kbd></span><span class="shortcut-desc">Choose Files to Send</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></span><span class="shortcut-desc">Choose Folder to Send</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>F</kbd></span><span class="shortcut-desc">Focus File Search</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>T</kbd></span><span class="shortcut-desc">Toggle Dark / Light Theme</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>R</kbd></span><span class="shortcut-desc">Refresh Status &amp; Files</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span><span class="shortcut-desc">Send Clipboard Text</span></div>
+          <div class="shortcut-item"><span class="shortcut-keys"><kbd>Esc</kbd></span><span class="shortcut-desc">Close / Reset</span></div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <h3 class="about-card-title">Actions &amp; Resources</h3>
+        <div class="about-actions-row">
+          <button type="button" class="btn-primary about-action-btn" onclick="openExternalUrl('https://github.com/penguinatnight/hotspot-share')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            <span>GitHub Repository</span>
+          </button>
+          <button type="button" class="btn-secondary about-action-btn" onclick="openOnboarding(true)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Re-open Tour</span>
+          </button>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -425,6 +506,7 @@
           <path d="M60,125 L-60,125 M-30,95 L-60,125 L-30,155" stroke-width="20"/>
         </g>
       </svg>
+      <button type="button" class="btn-onboard-skip-top" onclick="finishOnboarding()" title="Skip onboarding">Skip</button>
     </div>
 
     <!-- Full-Screen Viewport with Horizontal Sliding Track -->
@@ -580,6 +662,7 @@
         <span class="dot" onclick="goToOnboardSlide(4)"></span>
       </div>
       <div class="onboard-nav-buttons">
+        <button type="button" class="btn-onboard-skip" id="onboardSkipBtn" onclick="finishOnboarding()">Skip</button>
         <button type="button" class="btn-onboard-back" id="onboardBackBtn" onclick="prevOnboardSlide()" style="display:none;">Back</button>
         <button type="button" class="btn-onboard-next" id="onboardNextBtn" onclick="nextOnboardSlide()">Next &rarr;</button>
       </div>
