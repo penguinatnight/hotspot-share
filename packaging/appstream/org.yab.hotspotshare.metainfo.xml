@@ -79,6 +79,15 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.14" date="2026-09-04">
+      <description>
+        <p>Mobile web optimization: remove desktop keyboard shortcuts from mobile web view:</p>
+        <ul>
+          <li>Hide desktop keyboard shortcuts cheat sheet on mobile phones and touch devices.</li>
+          <li>Ensure clean, uncluttered About view on mobile web.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.13" date="2026-09-04">
       <description>
         <p>Mobile web UX overhaul: 5-column CSS grid navigation, non-overlapping badge, smooth native touch scrolling, and tab-aware incoming beams:</p>
