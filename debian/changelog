@@ -1,3 +1,12 @@
+hotspot-share (2.0.15-1) unstable; urgency=medium
+
+  * Suppress desktop trackpad pinch-zoom, multi-touch gestures, and Ctrl+zoom keys in GTK WebKit.
+  * Hide Re-open Tour action button on mobile web for a clean, distraction-free view.
+  * Fix phone unpairing endpoint, properly revoking sessions, clearing active device tracking, and updating UI states.
+  * Replace native browser confirm dialogs with graceful in-card unpairing and disconnect confirmation sheets.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 15:35:00 +0300
+
 hotspot-share (2.0.14-1) unstable; urgency=medium
 
   * Hide desktop keyboard shortcuts cheat sheet on mobile web and touch devices.

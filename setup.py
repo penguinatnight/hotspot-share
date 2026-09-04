@@ -5,7 +5,7 @@ web_files = [str(p) for p in Path("web").glob("*") if p.is_file()]
 
 setup(
     name="hotspot-share",
-    version="2.0.14",
+    version="2.0.15",
     description="High-Speed Local Wi-Fi File Sharing & Multimodal Clipboard Sync",
     author="penguinatnight", author_email="penguinatnight1@gmail.com", url="https://github.com/penguinatnight/hotspot-share",
     packages=find_packages(where="src"),

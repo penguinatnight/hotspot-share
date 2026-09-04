@@ -79,6 +79,17 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.15" date="2026-09-04">
+      <description>
+        <p>Native desktop zoom suppression, mobile tour cleanup, and graceful unpairing:</p>
+        <ul>
+          <li>Suppress trackpad pinch-zoom, multi-touch gestures, and Ctrl+zoom keys in GTK WebKit.</li>
+          <li>Remove Re-open Tour button on mobile web for clean presentation.</li>
+          <li>Fix phone unpairing endpoint, properly revoking sessions and updating real-time UI states.</li>
+          <li>Replace native Android popups with graceful in-card unpairing and disconnect confirmation sheets.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.14" date="2026-09-04">
       <description>
         <p>Mobile web optimization: remove desktop keyboard shortcuts from mobile web view:</p>
