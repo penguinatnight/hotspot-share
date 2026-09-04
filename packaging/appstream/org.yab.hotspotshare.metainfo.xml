@@ -79,6 +79,17 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.16" date="2026-09-05">
+      <description>
+        <p>Production reliability, full snap synchronization, and desktop zoom lockdown:</p>
+        <ul>
+          <li>Prevent UDP broadcast loopstorms by strictly replying to ping and discover queries.</li>
+          <li>Synchronize all snap staging runtimes and asset directories.</li>
+          <li>Hardware desktop zoom suppression and non-passive gesture prevention.</li>
+          <li>Graceful in-card unpairing and session disconnect workflow.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.15" date="2026-09-04">
       <description>
         <p>Native desktop zoom suppression, mobile tour cleanup, and graceful unpairing:</p>

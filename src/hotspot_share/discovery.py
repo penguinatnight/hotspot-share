@@ -3,6 +3,7 @@ import json
 import time
 import threading
 import logging
+import uuid
 from typing import Optional
 
 DISCOVERY_PORT = 53535
@@ -18,6 +19,7 @@ class DiscoveryBeacon:
         self.pc_name = pc_name
         self.pin_required = pin_required
         self.port = port
+        self.instance_id = uuid.uuid4().hex
         self.running = False
         self._thread: Optional[threading.Thread] = None
         self._sock: Optional[socket.socket] = None
@@ -30,6 +32,7 @@ class DiscoveryBeacon:
             "name": self.pc_name,
             "url": self.server_url,
             "pin_required": self.pin_required,
+            "instance_id": self.instance_id,
             "timestamp": time.time()
         }
         return json.dumps(info).encode("utf-8")
@@ -52,6 +55,7 @@ class DiscoveryBeacon:
 
         payload = self._get_payload()
         last_broadcast = 0.0
+        last_response_time = 0.0
 
         while self.running:
             now = time.time()
@@ -69,8 +73,16 @@ class DiscoveryBeacon:
                 if data:
                     try:
                         req = json.loads(data.decode("utf-8"))
-                        if req.get("cmd") in ("ping", "discover") or req.get("magic") == MAGIC_HEADER:
-                            sock.sendto(payload, addr)
+                        # Ignore self-broadcasts and looped-back packets from this instance
+                        if req.get("instance_id") == self.instance_id or req.get("url") == self.server_url:
+                            continue
+                        # CRITICAL FIX: Only reply to active search queries ("ping" or "discover").
+                        # Never reply to passive announcement beacons or responses (which contain
+                        # MAGIC_HEADER). Replying to announcements creates an explosive UDP packet storm.
+                        if req.get("cmd") in ("ping", "discover"):
+                            if now - last_response_time >= 0.05:
+                                sock.sendto(payload, addr)
+                                last_response_time = now
                     except Exception:
                         pass
             except socket.timeout:

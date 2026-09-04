@@ -43,11 +43,36 @@ class TestDiscovery(unittest.TestCase):
             self.assertEqual(resp["magic"], MAGIC_HEADER)
             self.assertEqual(resp["name"], "TestPC")
             self.assertEqual(resp["url"], "http://127.0.0.1:8080")
+            self.assertIn("instance_id", resp)
         finally:
             client_sock.close()
             stop_discovery_beacon()
 
         self.assertFalse(beacon.running)
+
+    def test_discovery_ignores_announcements(self):
+        test_port = 54322
+        beacon = start_discovery_beacon("http://127.0.0.1:8080", "TestPC", False, port=test_port)
+        self.assertTrue(beacon.running)
+        time.sleep(0.1)
+
+        client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        client_sock.settimeout(0.5)
+        try:
+            # Send a passive announcement beacon packet (must NOT trigger any reply)
+            announcement = json.dumps({
+                "magic": MAGIC_HEADER,
+                "app": "hotspot-share",
+                "name": "AnotherPeer",
+                "url": "http://192.168.1.99:8080"
+            }).encode("utf-8")
+            client_sock.sendto(announcement, ("127.0.0.1", test_port))
+
+            with self.assertRaises(socket.timeout):
+                client_sock.recvfrom(2048)
+        finally:
+            client_sock.close()
+            stop_discovery_beacon()
 
 if __name__ == '__main__':
     unittest.main()
