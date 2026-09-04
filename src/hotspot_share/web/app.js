@@ -734,6 +734,17 @@ function dismissPwaBanner() {
   if (banner) banner.style.display = 'none';
 }
 
+function updateMobileShortcutsVisibility() {
+  const shortcutsCard = document.querySelector('.about-shortcuts-card');
+  if (shortcutsCard) {
+    if (isMobileClient()) {
+      shortcutsCard.style.setProperty('display', 'none', 'important');
+    } else {
+      shortcutsCard.style.removeProperty('display');
+    }
+  }
+}
+
 async function triggerPwaInstall() {
   if (deferredPwaPrompt) {
     deferredPwaPrompt.prompt();
@@ -1569,6 +1580,7 @@ function switchTab(tabId) {
     loadClip();
   }
   if (tabId === 'security') renderSecuritySection();
+  if (tabId === 'about') updateMobileShortcutsVisibility();
 }
 
 async function manualRefresh() {
@@ -2683,6 +2695,7 @@ window.addEventListener('DOMContentLoaded', () => {
     openOnboarding(true);
   }
   updateSliderPosition('upload');
+  updateMobileShortcutsVisibility();
   sendHeartbeatAndPollStatus();
   setInterval(sendHeartbeatAndPollStatus, 2000);
 
@@ -2716,6 +2729,7 @@ if (isDesktopClient) {
 // Keep active tab indicator aligned on screen resize and orientation changes
 window.addEventListener('resize', () => {
   updateSliderPosition(activeTabId);
+  updateMobileShortcutsVisibility();
 });
 
 // ==========================================

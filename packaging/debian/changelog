@@ -1,3 +1,10 @@
+hotspot-share (2.0.14-1) unstable; urgency=medium
+
+  * Hide desktop keyboard shortcuts cheat sheet on mobile web and touch devices.
+  * Optimize About tab viewport footprint and clarity for phone browsers.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 15:02:00 +0300
+
 hotspot-share (2.0.13-1) unstable; urgency=medium
 
   * Redesign mobile navigation into a clean 5-column CSS grid with distinct icon and label layout.
@@ -43,6 +50,84 @@ hotspot-share (2.0.9-1) unstable; urgency=medium
   * Add session disconnect and 8-digit PIN revocation endpoint.
 
  -- penguinatnight <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 23:30:00 +0300
+
+hotspot-share (2.0.8-1) unstable; urgency=medium
+
+  * Fix Snap web assets and icon discovery path ($SNAP/usr/share/hotspot-share/web).
+  * Resolve "Web frontend missing" error when running inside confined Snap environments.
+  * Add automated test suite coverage for Snap FHS asset resolution and frontend HTTP serving.
+  * Include web frontend assets in Python packaging data_files.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 09:10:00 +0300
+
+hotspot-share (2.0.7-1) unstable; urgency=medium
+
+  * Redesigned onboarding into a fixed-dimension, graceful tour with zero card jumping.
+  * Upgraded security PIN authentication to 8 digits with tutorial and dedicated configuration UI.
+  * Removed device rename UI from desktop and mobile companion for a cleaner, automated flow.
+  * Added mobile PWA "Install as App" button, banner, and step-by-step installation instructions.
+  * Added /api/auth/configure endpoint for host-managed security PIN configuration.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 02:00:00 +0300
+
+hotspot-share (2.0.6-1) unstable; urgency=medium
+
+  * Set NO_PROXY on WebKitWebContext to bypass portal proxy resolver in Snap.
+  * Added GIO_USE_NETWORK_MONITOR=base and NO_AT_BRIDGE=1 to resolve portal sandbox denials.
+  * Added network-status and network-observe plugs to snapcraft.yaml.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:40:00 +0300
+
+hotspot-share (2.0.5-1) unstable; urgency=medium
+
+  * Resolved WebKitGTK Wayland blank frame by allowing hardware acceleration on demand.
+  * Added WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS to bypass nested bubblewrap deadlock in Snap.
+  * Hardened security: remote file deletion blocked by default unless explicitly configured.
+  * Added comprehensive SECURITY.md, CONTRIBUTING.md, and CodeQL security scanning.
+  * Redesigned documentation with outcome-driven positioning, comparison tables, and compatibility matrix.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:25:00 +0300
+
+hotspot-share (2.0.4-1) unstable; urgency=medium
+
+  * Resolved Mesa DRI/EGL driver mismatch inside snap environment.
+  * Explicitly configured LD_LIBRARY_PATH prioritizing gnome-platform graphics libraries.
+  * Set WEBKIT_DISABLE_COMPOSITING_MODE and disabled WebGL hardware acceleration in GUI wrapper.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 01:10:00 +0300
+
+hotspot-share (2.0.3-1) unstable; urgency=medium
+
+  * Resolved Snap package duplicate application entry in GNOME Shell / Ubuntu App Center.
+  * Fixed missing Exec field on Snap desktop launcher.
+  * Compiled native WebKitGTK wrapper inside container to resolve GLIBC version dependency.
+  * Published release directly to Canonical Snap Store latest/stable and latest/candidate channels.
+  * Replaced emoji glyphs with minimalist monochrome SVG vector line icons.
+  * Suppressed onboarding tour modal on mobile phone interfaces.
+  * Added connection guards preventing transmission when no phone is connected.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 00:50:00 +0300
+
+hotspot-share (2.0.2-1) unstable; urgency=medium
+
+  * Added AirDrop-style active beam notification engine for mobile devices.
+  * Added direct native device download flow for files and streamed ZIP folders.
+  * Added first-launch interactive animated onboarding tour (AirDrop for Linux, Privacy, QR pairing, Clipboard).
+  * Added dynamic peer context labels on action buttons ('Send to Phone' vs 'Send to PC').
+  * Added Files tab live notification badge and automatic sync upon transfer completion.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Thu, 03 Sep 2026 00:05:00 +0300
+
+hotspot-share (2.0.1-1) unstable; urgency=medium
+
+  * Added Progressive Web App (PWA) offline shell and service worker caching.
+  * Added mDNS and UDP broadcast peer auto-discovery engine.
+  * Added ephemeral self-signed TLS/HTTPS encryption with --ssl flag.
+  * Added smart batch conflict resolution engine with auto-renaming.
+  * Fixed WebKitGTK blank QR canvas rendering bug.
+  * Updated AppStream metadata with high-resolution screenshots and search SEO.
+
+ -- Hotspot Share Contributors <penguinatnight1@gmail.com>  Wed, 02 Sep 2026 23:45:00 +0300
 
 hotspot-share (2.0.0-1) unstable; urgency=medium
 

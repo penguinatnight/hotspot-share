@@ -2824,6 +2824,20 @@ kbd {
     min-height: 50px !important;
     border-radius: 14px !important;
   }
+
+  /* Completely hide desktop-only keyboard shortcuts on mobile screens */
+  .about-shortcuts-card,
+  .shortcuts-grid {
+    display: none !important;
+  }
+}
+
+/* Hide desktop keyboard shortcuts on touch devices */
+@media (pointer: coarse) and (hover: none) {
+  .about-shortcuts-card,
+  .shortcuts-grid {
+    display: none !important;
+  }
 }
 
 

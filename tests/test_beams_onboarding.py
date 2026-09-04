@@ -354,8 +354,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.3", html)
-        self.assertIn("hotspot-share-v2.1.3", sw_js)
+        self.assertIn("v=2.1.4", html)
+        self.assertIn("hotspot-share-v2.1.4", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)
@@ -494,6 +494,11 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 6. Valid HTML nesting for security-wrapper
         self.assertIn('</div>\n    </div>\n  </section>', html)
+
+        # 7. Desktop keyboard shortcuts hidden on mobile web
+        self.assertIn("about-shortcuts-card", html)
+        self.assertIn(".about-shortcuts-card", css)
+        self.assertIn("updateMobileShortcutsVisibility", js)
 
 if __name__ == "__main__":
     unittest.main()
