@@ -427,6 +427,47 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn('updateClipboardTabUI', js)
         self.assertIn('Send Image to ${targetDevice}', js)
 
+    def test_about_tab_skip_button_zoom_prevention_and_shortcuts(self):
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        js = Path("web/app.js").read_text(encoding="utf-8")
+        css = Path("web/style.css").read_text(encoding="utf-8")
+        gui_c = Path("gui/gui.c").read_text(encoding="utf-8")
+
+        # 1. About section tab (independent tab, not a modal)
+        self.assertIn('id="tab-about"', html)
+        self.assertIn('id="btn-about"', html)
+        self.assertIn('about-section-container', html)
+        self.assertIn('about-section-container', css)
+
+        # 2. Professional, understated version typography (no colorful badge)
+        self.assertIn('about-version-text', html)
+        self.assertIn('about-version-text', css)
+
+        # 3. Onboarding tour skip buttons
+        self.assertIn('id="onboardSkipBtn"', html)
+        self.assertIn('btn-onboard-skip-top', html)
+        self.assertIn('btn-onboard-skip', css)
+        self.assertIn('btn-onboard-skip-top', css)
+
+        # 4. Zoom and pinch prevention across GUI C and Web frontend
+        self.assertIn('on_webview_scroll', gui_c)
+        self.assertIn('notify::zoom-level', gui_c)
+        self.assertIn('webkit_web_view_set_zoom_level', gui_c)
+        self.assertIn("overscroll-behavior: none", css)
+        self.assertIn("touch-action: pan-x pan-y", css)
+        self.assertIn("window.addEventListener('wheel'", js)
+        self.assertIn("window.addEventListener('gesturestart'", js)
+
+        # 5. Desktop keyboard shortcuts
+        self.assertIn("shortcuts-grid", html)
+        self.assertIn("switchTab('upload')", js)
+        self.assertIn("switchTab('files')", js)
+        self.assertIn("switchTab('clip')", js)
+        self.assertIn("switchTab('security')", js)
+        self.assertIn("switchTab('about')", js)
+        self.assertIn("fileSearchInput", js)
+        self.assertIn("toggleTheme()", js)
+
 if __name__ == "__main__":
     unittest.main()
 

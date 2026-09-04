@@ -585,64 +585,10 @@ async function openSecurityModal() {
   document.getElementById('modal').classList.add('active');
 }
 
+const APP_CONTACT_EMAIL = 'penguinatnight1@gmail.com';
+
 function openAboutModal() {
-  const iconB64 = (typeof window.__ICON_BASE64__ !== 'undefined' && window.__ICON_BASE64__) || '';
-  const iconSrc = iconB64 ? `data:image/png;base64,${iconB64}` : '/icon.svg';
-  const html = `
-    <div class="about-modal-wrapper">
-      <div class="about-modal-header">
-        <div class="about-logo-box">
-          <img src="${iconSrc}" class="about-app-logo" alt="Hotspot Share" onerror="this.src='/icon.svg'">
-        </div>
-        <div class="about-meta">
-          <div class="about-title-row">
-            <h2 class="about-app-title">Hotspot Share</h2>
-            <span class="about-version-badge">v2.0.10</span>
-          </div>
-          <div class="about-app-tagline">High-Speed Local Wi-Fi File Sharing &amp; Multimodal Sync</div>
-        </div>
-      </div>
-
-      <p class="about-description">
-        Hotspot Share is a zero-cloud, privacy-first peer-to-peer sharing system designed for Linux desktops and mobile phones.
-        Transfer large files and directories at full Wi-Fi link speeds via a direct 8MB chunked transfer engine, and seamlessly sync clipboard text and images between your devices—with zero phone apps, zero cloud telemetry, and zero account logins.
-      </p>
-
-      <div class="about-specs-grid">
-        <div class="about-spec-item">
-          <span class="about-spec-label">Maintainer</span>
-          <span class="about-spec-val">penguinatnight</span>
-        </div>
-        <div class="about-spec-item">
-          <span class="about-spec-label">Contact</span>
-          <a href="mailto:penguinatnight1@gmail.com" onclick="openExternalUrl('mailto:penguinatnight1@gmail.com'); return false;" class="about-spec-link">penguinatnight1@gmail.com</a>
-        </div>
-        <div class="about-spec-item">
-          <span class="about-spec-label">License</span>
-          <span class="about-spec-val">GPL-3.0 (Open Source)</span>
-        </div>
-        <div class="about-spec-item">
-          <span class="about-spec-label">Architecture</span>
-          <span class="about-spec-val">Python 3 + WebKitGTK</span>
-        </div>
-      </div>
-
-      <div class="about-actions-row">
-        <button type="button" class="btn-primary about-action-btn" onclick="openExternalUrl('https://github.com/penguinatnight/hotspot-share')">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-          <span>GitHub Source</span>
-        </button>
-        <button type="button" class="btn-secondary about-action-btn" onclick="closeAboutAndTour()">
-          <span>Re-open Tour</span>
-        </button>
-        <button type="button" class="btn-secondary about-action-btn" onclick="closeModal()">
-          <span>Close</span>
-        </button>
-      </div>
-    </div>
-  `;
-  document.getElementById('modalBody').innerHTML = html;
-  document.getElementById('modal').classList.add('active');
+  switchTab('about');
 }
 
 function openExternalUrl(url) {
@@ -1415,6 +1361,10 @@ function updateOnboardSlideUI() {
 
   const backBtn = document.getElementById('onboardBackBtn');
   const nextBtn = document.getElementById('onboardNextBtn');
+  const skipBtn = document.getElementById('onboardSkipBtn');
+  if (skipBtn) {
+    skipBtn.style.display = currentOnboardSlide === totalOnboardSlides - 1 ? 'none' : 'inline-block';
+  }
   if (backBtn) {
     backBtn.style.display = currentOnboardSlide === 0 ? 'none' : 'inline-block';
   }
@@ -2675,5 +2625,127 @@ window.addEventListener('DOMContentLoaded', () => {
 
   if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  }
+});
+
+// ==========================================
+// Zoom & Pinch Prevention (Native Desktop Feel)
+// ==========================================
+window.addEventListener('wheel', (e) => {
+  if (e.ctrlKey) {
+    e.preventDefault();
+  }
+}, { passive: false });
+
+window.addEventListener('gesturestart', (e) => e.preventDefault());
+window.addEventListener('gesturechange', (e) => e.preventDefault());
+window.addEventListener('gestureend', (e) => e.preventDefault());
+
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === '0')) {
+    e.preventDefault();
+  }
+});
+
+// ==========================================
+// Comprehensive Native Desktop Keyboard Shortcuts
+// ==========================================
+window.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+  // Allow Escape anytime to dismiss modals / blur inputs
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('modal');
+    if (modal && modal.classList.contains('active')) {
+      closeModal();
+      e.preventDefault();
+      return;
+    }
+    const onboard = document.getElementById('onboardingOverlay');
+    if (onboard && onboard.style.display !== 'none') {
+      finishOnboarding();
+      e.preventDefault();
+      return;
+    }
+    if (isInput) {
+      target.blur();
+      e.preventDefault();
+      return;
+    }
+  }
+
+  // Ctrl+Enter: Send clipboard text
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    if (activeTabId === 'clip' || (isInput && target.id === 'clipInput')) {
+      const btn = document.getElementById('btnSendClip');
+      if (btn) btn.click();
+    }
+    return;
+  }
+
+  // Tab switching shortcuts: Alt+1..5 or Ctrl+1..5
+  if ((e.altKey || e.ctrlKey) && !e.shiftKey && !e.metaKey) {
+    if (e.key === '1') { e.preventDefault(); switchTab('upload'); return; }
+    if (e.key === '2') { e.preventDefault(); switchTab('files'); return; }
+    if (e.key === '3') { e.preventDefault(); switchTab('clip'); return; }
+    if (e.key === '4') { e.preventDefault(); switchTab('security'); return; }
+    if (e.key === '5') { e.preventDefault(); switchTab('about'); return; }
+  }
+
+  // Ctrl+O: Choose Files to Send
+  if (e.ctrlKey && !e.shiftKey && (e.key === 'o' || e.key === 'O')) {
+    e.preventDefault();
+    switchTab('upload');
+    const fInput = document.getElementById('fileInput');
+    if (fInput) fInput.click();
+    return;
+  }
+
+  // Ctrl+Shift+O or Ctrl+D: Choose Folder to Send
+  if ((e.ctrlKey && e.shiftKey && (e.key === 'o' || e.key === 'O')) || (e.ctrlKey && !e.shiftKey && (e.key === 'd' || e.key === 'D'))) {
+    e.preventDefault();
+    switchTab('upload');
+    const foldInput = document.getElementById('folderInput');
+    if (foldInput) foldInput.click();
+    return;
+  }
+
+  // Ctrl+F: Focus File Search
+  if (e.ctrlKey && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    switchTab('files');
+    setTimeout(() => {
+      const sInput = document.getElementById('fileSearchInput');
+      if (sInput) {
+        sInput.focus();
+        sInput.select();
+      }
+    }, 50);
+    return;
+  }
+
+  // Ctrl+T: Toggle Dark / Light Theme
+  if (e.ctrlKey && !e.shiftKey && (e.key === 't' || e.key === 'T')) {
+    e.preventDefault();
+    toggleTheme();
+    return;
+  }
+
+  // Ctrl+R or F5: Refresh Status & Files
+  if ((e.ctrlKey && !e.shiftKey && (e.key === 'r' || e.key === 'R')) || e.key === 'F5') {
+    e.preventDefault();
+    manualRefresh();
+    return;
+  }
+
+  // Single key '?' or F1: About / Shortcuts Info (when not typing in an input)
+  if (!isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    if (e.key === '?' || e.key === 'F1') {
+      e.preventDefault();
+      switchTab('about');
+      return;
+    }
   }
 });
