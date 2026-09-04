@@ -354,8 +354,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.2", html)
-        self.assertIn("hotspot-share-v2.1.2", sw_js)
+        self.assertIn("v=2.1.3", html)
+        self.assertIn("hotspot-share-v2.1.3", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)
@@ -463,6 +463,37 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn("switchTab('about')", js)
         self.assertIn("fileSearchInput", js)
         self.assertIn("toggleTheme()", js)
+
+    def test_mobile_grid_navigation_and_scrolling(self):
+        html = Path("web/index.html").read_text(encoding="utf-8")
+        js = Path("web/app.js").read_text(encoding="utf-8")
+        css = Path("web/style.css").read_text(encoding="utf-8")
+
+        # 1. Strict 5-column CSS grid navigation on mobile
+        self.assertIn("grid-template-columns: repeat(5, 1fr) !important;", css)
+        self.assertIn("flex-direction: column !important;", css)
+
+        # 2. Absolute notification badge positioning on Files tab (zero overlap with Clipboard)
+        self.assertIn("position: absolute !important;", css)
+        self.assertIn("right: calc(50% - 18px) !important;", css)
+
+        # 3. Smooth touch scrolling on mobile
+        self.assertIn("touch-action: manipulation", css)
+        self.assertIn("-webkit-overflow-scrolling: touch", css)
+        self.assertIn("overflow-y: auto !important;", css)
+        self.assertIn("isDesktopClient", js)
+
+        # 4. Tab-aware incoming beams visibility and batch controls
+        self.assertIn("tabId === 'upload' || tabId === 'files'", js)
+        self.assertIn("beam-batch-header", css)
+        self.assertIn("downloadAllBeams", js)
+        self.assertIn("dismissAllBeams", js)
+
+        # 5. Viewport scroll reset on tab change
+        self.assertIn("window.scrollTo({ top: 0, behavior: 'instant' })", js)
+
+        # 6. Valid HTML nesting for security-wrapper
+        self.assertIn('</div>\n    </div>\n  </section>', html)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1250,8 +1250,28 @@ function syncIncomingBeams(beams) {
     return;
   }
 
-  container.style.display = 'flex';
-  container.innerHTML = activeBeams.map(b => {
+  // Only display incoming beams on upload or files tabs so they never conceal About / Security / Clipboard
+  const shouldShow = (activeTabId === 'upload' || activeTabId === 'files');
+  container.style.display = shouldShow ? 'flex' : 'none';
+
+  let html = '';
+  if (activeBeams.length > 1) {
+    const totalBytes = activeBeams.reduce((acc, b) => acc + (b.size || 0), 0);
+    const sender = activeBeams[0].sender || 'PC';
+    html += `
+      <div class="beam-batch-header">
+        <div class="beam-batch-info">
+          <span>AirDrop from <b>${escapeHtml(sender)}</b>: <b>${activeBeams.length} files</b> (${formatBytes(totalBytes)})</span>
+        </div>
+        <div class="beam-batch-actions">
+          <button type="button" class="btn-beam-save-all" onclick="downloadAllBeams()">Save All</button>
+          <button type="button" class="btn-beam-dismiss-all" onclick="dismissAllBeams()">Dismiss All</button>
+        </div>
+      </div>
+    `;
+  }
+
+  html += activeBeams.map(b => {
     const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
     const downloadUrl = `/api/download?path=${encodeURIComponent(b.path)}${tokenQuery}`;
     const isDir = b.is_dir;
@@ -1279,6 +1299,7 @@ function syncIncomingBeams(beams) {
     `;
   }).join('');
 
+  container.innerHTML = html;
   updateFilesBadge(activeBeams.length);
 }
 
@@ -1287,10 +1308,40 @@ function dismissBeam(beamId) {
   const card = document.getElementById(`beam-${beamId}`);
   if (card) card.remove();
   const container = document.getElementById('incomingBeamsContainer');
-  if (container && container.children.length === 0) {
-    container.style.display = 'none';
+  if (container) {
+    const remaining = container.querySelectorAll('.beam-card');
+    if (remaining.length === 0) {
+      container.style.display = 'none';
+      container.innerHTML = '';
+      updateFilesBadge(0);
+    } else {
+      updateFilesBadge(remaining.length);
+    }
   }
   fetch(`/api/dismiss_beam?id=${encodeURIComponent(beamId)}`).catch(() => {});
+}
+
+function dismissAllBeams() {
+  const container = document.getElementById('incomingBeamsContainer');
+  const cards = container ? container.querySelectorAll('.beam-card') : [];
+  cards.forEach(card => {
+    const id = card.id.replace('beam-', '');
+    dismissedBeams.add(id);
+    fetch(`/api/dismiss_beam?id=${encodeURIComponent(id)}`).catch(() => {});
+  });
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+  updateFilesBadge(0);
+}
+
+function downloadAllBeams() {
+  const container = document.getElementById('incomingBeamsContainer');
+  const buttons = container ? container.querySelectorAll('.btn-beam-save') : [];
+  buttons.forEach((btn, idx) => {
+    setTimeout(() => btn.click(), idx * 250);
+  });
 }
 
 function updateFilesBadge(count) {
@@ -1482,6 +1533,8 @@ function updateSliderPosition(tabId) {
   const slider = document.getElementById('sliderIndicator');
   if (btn && slider) {
     slider.style.width = btn.offsetWidth + 'px';
+    slider.style.height = btn.offsetHeight + 'px';
+    slider.style.top = btn.offsetTop + 'px';
     slider.style.transform = `translateX(${btn.offsetLeft}px)`;
   }
 }
@@ -1493,9 +1546,19 @@ function switchTab(tabId) {
   });
   updateSliderPosition(tabId);
 
+  // Smart incoming beams visibility: only show incoming beams on upload or files tabs
+  const beamsContainer = document.getElementById('incomingBeamsContainer');
+  if (beamsContainer && beamsContainer.children.length > 0) {
+    beamsContainer.style.display = (tabId === 'upload' || tabId === 'files') ? 'flex' : 'none';
+  }
+
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   const target = document.getElementById('tab-' + tabId);
   if (target) target.classList.add('active');
+
+  // Immediately scroll window to top so user sees the active tab content
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
   if (tabId === 'files') {
     updateFilesBadge(0);
     filesNeedRefresh = false;
@@ -2629,22 +2692,30 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// Zoom & Pinch Prevention (Native Desktop Feel)
+// Zoom & Pinch Prevention (Native Desktop Feel - Desktop Only)
 // ==========================================
-window.addEventListener('wheel', (e) => {
-  if (e.ctrlKey) {
-    e.preventDefault();
-  }
-}, { passive: false });
+const isDesktopClient = !(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+if (isDesktopClient) {
+  window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+    }
+  }, { passive: false });
 
-window.addEventListener('gesturestart', (e) => e.preventDefault());
-window.addEventListener('gesturechange', (e) => e.preventDefault());
-window.addEventListener('gestureend', (e) => e.preventDefault());
+  window.addEventListener('gesturestart', (e) => e.preventDefault());
+  window.addEventListener('gesturechange', (e) => e.preventDefault());
+  window.addEventListener('gestureend', (e) => e.preventDefault());
 
-window.addEventListener('keydown', (e) => {
-  if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === '0')) {
-    e.preventDefault();
-  }
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.key === '0')) {
+      e.preventDefault();
+    }
+  });
+}
+
+// Keep active tab indicator aligned on screen resize and orientation changes
+window.addEventListener('resize', () => {
+  updateSliderPosition(activeTabId);
 });
 
 // ==========================================

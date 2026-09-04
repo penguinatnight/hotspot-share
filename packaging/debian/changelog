@@ -1,3 +1,13 @@
+hotspot-share (2.0.13-1) unstable; urgency=medium
+
+  * Redesign mobile navigation into a clean 5-column CSS grid with distinct icon and label layout.
+  * Pin file badge as an absolute counter to prevent layout shift and overlapping adjacent tabs.
+  * Restore smooth native momentum touch scrolling on mobile WebKit and Android browsers.
+  * Make incoming transfer beams tab-aware and add batch save/dismiss controls.
+  * Automatically scroll to top on tab switch for instant section visibility.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 14:50:00 +0300
+
 hotspot-share (2.0.12-1) unstable; urgency=medium
 
   * Remove duplicate About and Security buttons from header actions.
