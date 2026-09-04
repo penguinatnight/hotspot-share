@@ -1,3 +1,11 @@
+hotspot-share (2.0.12-1) unstable; urgency=medium
+
+  * Remove duplicate About and Security buttons from header actions.
+  * Add graceful, commercially accepted circular outline icon for About tab.
+  * Streamline onboarding tour with a single top-level Skip button.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 14:35:00 +0300
+
 hotspot-share (2.0.11-1) unstable; urgency=medium
 
   * Convert About section into a dedicated tab section (no modal / iOS look).

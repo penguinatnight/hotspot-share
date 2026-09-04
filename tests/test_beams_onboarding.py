@@ -232,10 +232,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn(':root,\n:root[data-theme="light"]', css)
 
         # Icons must have visible descriptive names/labels
-        self.assertIn('id="securityBtn"', html)
-        self.assertIn('<span class="btn-label">Security</span>', html)
-        self.assertIn('id="aboutBtn"', html)
-        self.assertIn('<span class="btn-label">About</span>', html)
+        self.assertIn('id="btn-security"', html)
+        self.assertIn('id="btn-about"', html)
         self.assertIn('id="tourBtn"', html)
         self.assertIn('<span class="btn-label">Tour</span>', html)
         self.assertIn('id="refreshBtn"', html)
@@ -356,8 +354,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.0", html)
-        self.assertIn("hotspot-share-v2.1.0", sw_js)
+        self.assertIn("v=2.1.2", html)
+        self.assertIn("hotspot-share-v2.1.2", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)
@@ -402,7 +400,7 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn("openAboutModal", js)
         self.assertIn("about-modal-wrapper", css)
         self.assertIn("penguinatnight1@gmail.com", js)
-        self.assertIn("id=\"aboutBtn\"", html)
+        self.assertIn('id="btn-about"', html)
 
         # 3. Contact email updated everywhere
         self.assertIn("penguinatnight1@gmail.com", setup_py)
@@ -443,10 +441,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertIn('about-version-text', html)
         self.assertIn('about-version-text', css)
 
-        # 3. Onboarding tour skip buttons
-        self.assertIn('id="onboardSkipBtn"', html)
+        # 3. Onboarding tour skip button on top
         self.assertIn('btn-onboard-skip-top', html)
-        self.assertIn('btn-onboard-skip', css)
         self.assertIn('btn-onboard-skip-top', css)
 
         # 4. Zoom and pinch prevention across GUI C and Web frontend

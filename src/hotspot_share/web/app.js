@@ -1361,9 +1361,9 @@ function updateOnboardSlideUI() {
 
   const backBtn = document.getElementById('onboardBackBtn');
   const nextBtn = document.getElementById('onboardNextBtn');
-  const skipBtn = document.getElementById('onboardSkipBtn');
-  if (skipBtn) {
-    skipBtn.style.display = currentOnboardSlide === totalOnboardSlides - 1 ? 'none' : 'inline-block';
+  const skipTopBtn = document.querySelector('.btn-onboard-skip-top');
+  if (skipTopBtn) {
+    skipTopBtn.style.display = currentOnboardSlide === totalOnboardSlides - 1 ? 'none' : 'inline-block';
   }
   if (backBtn) {
     backBtn.style.display = currentOnboardSlide === 0 ? 'none' : 'inline-block';

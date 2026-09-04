@@ -79,6 +79,16 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.12" date="2026-09-04">
+      <description>
+        <p>Header navigation cleanup, graceful About icon, and single onboarding skip button:</p>
+        <ul>
+          <li>Removed duplicate About and Security buttons from header actions for clean, consolidated navigation.</li>
+          <li>Added graceful, commercially accepted circular outline icon for About tab.</li>
+          <li>Streamlined onboarding tour with a single top-level Skip button.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.11" date="2026-09-04">
       <description>
         <p>Dedicated desktop About tab, native zoom controls, and tour skip:</p>
