@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light"__AUTH_LOCKED__>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Hotspot Share</title>
+<link rel="icon" type="image/png" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="shortcut icon" type="image/png" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="apple-touch-icon" href="data:image/png;base64,__ICON_BASE64__">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css?v=2.1.0">
+<script>
+  try {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    if (!localStorage.getItem('hotspot_onboarded')) {
+      document.documentElement.classList.add('init-onboarding');
+    }
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<header>
+  <div class="mobile-brand-bar">
+    <div class="mobile-brand-left">
+      <img src="data:image/png;base64,__ICON_BASE64__" class="mobile-brand-logo" alt="Hotspot Share" onerror="this.src='/icon.svg'">
+      <div class="mobile-brand-meta">
+        <span class="mobile-brand-name">Hotspot Share</span>
+        <span class="mobile-brand-desc">Local Wi-Fi Transfer &amp; Clipboard Sync</span>
+      </div>
+    </div>
+  </div>
+  <div class="tabs-container">
+    <div class="slider-indicator" id="sliderIndicator"></div>
+    <button class="tab-btn active" id="btn-upload" onclick="switchTab('upload')">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+      <span>Upload</span>
+    </button>
+    <button class="tab-btn" id="btn-files" onclick="switchTab('files')">
+      <svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+      <span>Files</span> <span class="tab-badge" id="filesTabBadge" style="display:none;">0</span>
+    </button>
+    <button class="tab-btn" id="btn-clip" onclick="switchTab('clip')">
+      <svg viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+      <span>Clipboard</span>
+    </button>
+    <button class="tab-btn" id="btn-security" onclick="switchTab('security')">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>Security</span>
+    </button>
+  </div>
+  <div class="header-actions">
+    <button class="btn-theme" onclick="switchTab('security')" id="securityBtn" title="Security & 8-Digit PIN Settings">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span class="btn-label">Security</span>
+    </button>
+    <button class="btn-theme" onclick="openAboutModal()" id="aboutBtn" title="About Hotspot Share">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span class="btn-label">About</span>
+    </button>
+    <button class="btn-theme" onclick="openOnboarding(true)" id="tourBtn" title="Product Tour & Feature Guide">
+      <svg viewBox="0 0 24 24" width="14" height="14" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="btn-label">Tour</span>
+    </button>
+    <button class="btn-theme" onclick="manualRefresh()" id="refreshBtn" title="Refresh status, files & clipboard">
+      <svg viewBox="0 0 24 24" width="14" height="14" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <span class="btn-label">Refresh</span>
+    </button>
+    <button class="btn-theme" onclick="toggleTheme()" id="themeBtn" title="Switch to Dark mode">
+      <svg id="themeIcon" viewBox="0 0 24 24" width="14" height="14"></svg>
+      <span class="btn-label" id="themeLabel">Dark</span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <section class="system-status-bar">
+    <div class="status-row-top">
+      <div class="device-presence">
+        <div class="beacon-dot" id="beaconDot"></div>
+        <span id="deviceNameLabel">Checking connection...</span>
+        <div class="pin-status-badge" id="hostPinBadge" style="display:none;" onclick="openSecurityModal()" title="Click to view or configure 8-Digit PIN">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>PIN: <b id="hostPinCodeText">--------</b></span>
+        </div>
+        <button class="btn-disconnect-mini" id="disconnectMiniBtn" onclick="disconnectAllDevices()" style="display:none;" title="Disconnect paired device & revoke PIN">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
+          <span>Disconnect</span>
+        </button>
+        <button class="btn-refresh-mini" onclick="manualRefresh()" title="Refresh connection & storage">
+          <svg viewBox="0 0 24 24" width="13" height="13" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+      <div class="storage-metrics">
+        <span id="diskSpaceText">Available free</span>
+      </div>
+    </div>
+    <div class="storage-bar-track">
+      <div class="storage-bar-fill" id="storageBarFill"></div>
+    </div>
+  </section>
+
+  <section class="qr-connect-card" id="qrConnectCard" style="display:none;">
+    <div class="qr-box" id="qrSvgContainer">
+      <canvas id="qrCanvas" width="108" height="108"></canvas>
+    </div>
+    <div class="qr-details">
+      <div class="qr-title">Connect Your Phone</div>
+      <div class="qr-desc">Make sure your laptop is connected to your phone's hotspot, then scan this QR code:</div>
+      <div class="qr-link-badge" id="qrUrlBadge">http://...</div>
+    </div>
+  </section>
+
+  <!-- INCOMING AIRDROP / BEAM PROMPT FOR MOBILE -->
+  <section class="incoming-beams-container" id="incomingBeamsContainer" style="display:none;"></section>
+
+  <!-- TAB 1: UPLOAD -->
+  <section id="tab-upload" class="tab-content active">
+    <div class="dropzone" id="dropzone">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+      <h3 id="dropzoneTitle">Drop files or folders here</h3>
+      <p id="dropzoneSubtitle">Direct Wi-Fi 6 Transfer &bull; Instant Peer-to-Peer Beam</p>
+      
+      <div class="action-buttons">
+        <button type="button" class="btn-primary" id="btnSelectFiles" onclick="handleFileSelectClick('fileInput')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          <span>Select Files</span>
+        </button>
+        <button type="button" class="btn-secondary" id="btnSelectFolder" onclick="handleFileSelectClick('folderInput')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+          <span>Select Folder</span>
+        </button>
+      </div>
+      <input type="file" id="fileInput" multiple>
+      <input type="file" id="folderInput" webkitdirectory directory multiple>
+    </div>
+
+    <div class="indexing-banner" id="indexingBanner" style="display:none;">
+      <div class="indexing-spinner"></div>
+      <span class="indexing-text" id="indexingText">Scanning folder structure...</span>
+    </div>
+
+    <div class="queue-summary" id="queueSummary" style="display:none;">
+      <div class="summary-header">
+        <span id="summaryCount">Transferring...</span>
+        <div class="summary-metrics">
+          <span class="summary-speed" id="summarySpeed">0 MB/s</span>
+          <span class="summary-eta" id="summaryEta">--</span>
+          <button type="button" class="btn-cancel" id="summaryCancelBtn" onclick="handleSummaryCancel()">Cancel All</button>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="summaryProgressFill"></div>
+      </div>
+    </div>
+
+    <div class="queue-container" id="uploadQueue"></div>
+  </section>
+
+  <!-- TAB 2: FILES ON LAPTOP -->
+  <section id="tab-files" class="tab-content">
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+
+    <div class="files-toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search files..." oninput="filterFiles()">
+      </div>
+      <button class="btn-small" onclick="promptNewFolder()" title="Create new directory">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>
+        <span>+ Folder</span>
+      </button>
+      <button class="btn-small" onclick="loadFiles()" title="Refresh file list">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span>Refresh</span>
+      </button>
+      <button class="btn-small" onclick="confirmClearSharedFolder()" style="color:var(--danger);" title="Delete all files in this directory">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <span>Clear All</span>
+      </button>
+    </div>
+    <div class="file-list" id="fileList"></div>
+  </section>
+
+  <!-- TAB 3: MULTIMODAL CLIPBOARD -->
+  <section id="tab-clip" class="tab-content">
+    <div class="clip-privacy-banner">
+      <span><b>Zero Auto-Sync Privacy:</b> Hotspot Share never accesses or pastes your clipboard automatically. Your clipboard is only synced when you actively initiate it here.</span>
+    </div>
+
+    <div class="clip-wrapper">
+      <div class="clip-card">
+        <div class="clip-header">
+          <span id="clipCardTitle">PHONE CLIPBOARD</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn-small" onclick="loadClip(true)" id="btnFetchClip" title="Fetch copied content">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span id="fetchClipLabel">Fetch from Phone</span>
+            </button>
+            <button class="btn-small" onclick="clearClipboardView()" title="Clear view and start fresh">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="pcImageCard" style="display:none;" class="clip-image-preview">
+          <div style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:12px;color:var(--text-secondary);" id="pcImgInfo">Image from Clipboard</div>
+            <button class="action-btn btn-del" onclick="dismissPcImage()" title="Close image preview">✕ Close Preview</button>
+          </div>
+          <img id="pcImgElement" class="clip-img-tag" src="" alt="Copied Image">
+          <div class="clip-actions">
+            <a id="pcImgDownloadBtn" class="btn-primary" download="clipboard_image.png" href="">Save Image</a>
+            <button class="btn-secondary" onclick="copyImageToPhone()">Copy Image</button>
+            <button class="btn-secondary" onclick="saveClipImageToSharedFolder()">Save to Files</button>
+            <button class="btn-secondary" onclick="dismissPcImage()">✕ Close</button>
+          </div>
+        </div>
+
+        <div id="pcTextCard">
+          <textarea id="clipText" class="clip-box" placeholder="Type or paste text here. Tap 'Send Text to Phone' to sync with your phone..."></textarea>
+          <div class="clip-actions" style="margin-top:10px;">
+            <button class="btn-secondary" onclick="clearClipText()" title="Clear text area">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              <span>Clear Text</span>
+            </button>
+            <button class="btn-secondary" onclick="copyClip()">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+              <span>Copy Text</span>
+            </button>
+            <button class="btn-primary" onclick="saveClipText()" id="btnSendClipText">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <span id="sendClipTextLabel">Send Text to Phone</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="clip-card">
+        <div class="clip-header">
+          <span id="clipImageCardTitle">SEND IMAGE TO PHONE</span>
+          <button class="btn-small" id="clipImgCancelBtn" style="display:none;" onclick="cancelSelectedClipImage()">✕ Remove</button>
+        </div>
+        <p id="clipImageDesc" style="font-size:13px;color:var(--text-secondary);">
+          Select or paste an image here to send it directly to your phone's clipboard or photo gallery.
+        </p>
+
+        <div id="selectedImagePreview" style="display:none;" class="clip-image-preview">
+          <img id="selectedImgElement" class="clip-img-tag" src="" alt="Selected Image">
+          <div style="font-size:12px;color:var(--text-secondary);" id="selectedImgInfo">Ready to send</div>
+          <div class="clip-actions">
+            <button class="btn-primary" id="btnSendImageAction" onclick="sendSelectedImageToPc()">Send Image to Phone</button>
+            <button class="btn-secondary" onclick="cancelSelectedClipImage()">✕ Remove</button>
+          </div>
+        </div>
+
+        <div class="clip-actions" id="selectImageActions">
+          <button class="btn-secondary" onclick="document.getElementById('clipImageInput').click()">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            <span id="selectImageBtnLabel">Select Image for Phone</span>
+          </button>
+          <input type="file" id="clipImageInput" accept="image/*" onchange="handleClipImageSelect(this.files)">
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- TAB 4: SECURITY & 8-DIGIT PIN -->
+  <section id="tab-security" class="tab-content">
+    <div class="security-wrapper">
+      
+      <div class="security-card">
+        <div class="sec-card-header">
+          <div class="sec-header-title-group">
+            <div class="sec-icon-emblem">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="3" ry="3"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <circle cx="12" cy="16" r="1"/>
+                <path d="M12 17v2"/>
+              </svg>
+            </div>
+            <div>
+              <h2 style="font-size:17px;font-weight:600;">PIN Protection</h2>
+              <p id="secOneSentenceDesc" style="font-size:12.5px;color:var(--text-secondary);margin-top:2px;">Require an 8-digit code before connecting devices can transfer files or access clipboard.</p>
+            </div>
+          </div>
+          <span id="secStatusBadge" class="sec-status-badge is-disabled">Disabled</span>
+        </div>
+
+        <div class="sec-toggle-row">
+          <div class="sec-toggle-explanation">
+            <b id="secToggleStateTitle" style="display:block;font-size:13.5px;margin-bottom:2px;">PIN Protection is Off</b>
+            <span id="secToggleStateDesc" style="font-size:12px;color:var(--text-secondary);">Anyone on your Wi-Fi can transfer files without a code.</span>
+          </div>
+          <div class="sec-toggle-btn-container" id="secToggleBtnContainer">
+            <button class="btn-primary" id="btnEnablePinAction" onclick="toggleAuthSecurity(true)">
+              Enable PIN Protection
+            </button>
+          </div>
+        </div>
+
+        <!-- Active PIN Display (Visible when enabled) -->
+        <div id="secActivePinBox" class="sec-active-pin-box" style="display:none;">
+          <div class="sec-pin-label">Active Pairing PIN</div>
+          <div class="sec-pin-display-row">
+            <div class="sec-pin-code-digits" id="secPinDigits">--------</div>
+            <div class="sec-pin-actions">
+              <button class="btn-secondary" onclick="copyActivePin()" title="Copy PIN">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                <span>Copy</span>
+              </button>
+              <button class="btn-secondary" onclick="regeneratePinCode()" title="Generate new PIN">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Regenerate</span>
+              </button>
+              <button class="btn-secondary" onclick="disconnectAllDevices()" title="Disconnect paired devices and regenerate PIN">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+                </svg>
+                <span>Disconnect</span>
+              </button>
+            </div>
+          </div>
+          
+          <div class="sec-custom-pin-row">
+            <input type="text" id="secCustomPinInput" maxlength="8" placeholder="Enter custom 8-digit PIN" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+            <button class="btn-secondary" onclick="setCustomPinFromTab()">
+              Set PIN
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- FULL-SCREEN PIN AUTHORIZATION (ZERO EXIT BUTTON, COMPLETE SHIELD) -->
+<div id="pinAuthOverlay" class="pin-auth-fullscreen" style="display:none;">
+  <div class="pin-auth-wrapper">
+    <!-- APP BRANDING -->
+    <div class="pin-auth-branding">
+      <div class="pin-auth-logo-box">
+        <img src="data:image/png;base64,__ICON_BASE64__" class="pin-auth-app-logo" alt="Hotspot Share Logo" onerror="this.src='/icon.svg'">
+      </div>
+      <h1 class="pin-auth-app-name">Hotspot Share</h1>
+      <p class="pin-auth-app-desc">High-speed local Wi-Fi file sharing &amp; clipboard sync between PC and mobile.</p>
+    </div>
+
+    <!-- PAIRING CARD -->
+    <form class="pin-auth-container" id="pinAuthForm" onsubmit="event.preventDefault(); submitPinAuth();" novalidate>
+      <div class="pin-auth-badge">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="3" ry="3"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <circle cx="12" cy="16" r="1.2"/>
+        </svg>
+        <span>Pairing Required</span>
+      </div>
+
+      <h2 class="pin-auth-title">8-Digit Security PIN</h2>
+      <p class="pin-auth-desc">Enter the 8-digit PIN displayed on your PC screen to connect:</p>
+      
+      <div id="pinAuthError" class="pin-auth-error" style="display:none;"></div>
+      
+      <div class="pin-auth-input-wrap">
+        <input type="text" id="pinAuthInput" maxlength="9" placeholder="•••• ••••" autocomplete="one-time-code" inputmode="numeric"
+          oninput="formatPinAuthInput(this)">
+      </div>
+      
+      <button type="submit" class="btn-primary pin-auth-submit-btn" id="btnSubmitPinAuth">
+        <span id="btnSubmitPinAuthText">Authorize &amp; Connect</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="modal" onclick="closeModal(event)">
+  <div class="modal-content" id="modalContainer" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- FULL-SCREEN ONBOARDING EXPERIENCE -->
+<div class="onboarding-overlay" id="onboardingOverlay" onclick="handleOnboardingBackdropClick(event)">
+  <div class="onboarding-card" id="onboardingMainTour" onclick="event.stopPropagation()">
+    
+    <!-- Clean Minimalist Header: Original Logo Only (No Clutter, No Skip/Step/Subtitle) -->
+    <div class="onboarding-top-bar">
+      <svg class="onboarding-original-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="50" height="50">
+        <defs>
+          <linearGradient id="ob_bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1c1c1e"/>
+            <stop offset="100%" stop-color="#000000"/>
+          </linearGradient>
+          <linearGradient id="ob_accent" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="100%" stop-color="#a1a1a6"/>
+          </linearGradient>
+          <filter id="ob_glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#000" flood-opacity="0.6"/>
+          </filter>
+        </defs>
+        <!-- Original Squircle Background -->
+        <rect x="32" y="32" width="448" height="448" rx="105" ry="105" fill="url(#ob_bg)" stroke="#2c2c2e" stroke-width="4" filter="url(#ob_glow)"/>
+        <!-- Original Wi-Fi Waves & Transfer Arrows -->
+        <g transform="translate(256, 256)" stroke="url(#ob_accent)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path d="M-120,-80 A160,160 0 0,1 120,-80" />
+          <path d="M-75,-35 A100,100 0 0,1 75,-35" />
+          <circle cx="0" cy="10" r="12" fill="url(#ob_accent)" stroke="none"/>
+          <path d="M-60,75 L60,75 M30,45 L60,75 L30,105" stroke-width="20"/>
+          <path d="M60,125 L-60,125 M-30,95 L-60,125 L-30,155" stroke-width="20"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Full-Screen Viewport with Horizontal Sliding Track -->
+    <div class="onboarding-viewport">
+      <div class="onboarding-track" id="onboardingTrack">
+
+        <!-- Slide 0: Welcome & AirDrop for Linux -->
+        <div class="onboarding-slide active" id="onboard-slide-0">
+          <div class="anim-container">
+            <div class="beam-demo">
+              <div class="demo-device pc-device">
+                <div class="device-icon-wrap">
+                  <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+                </div>
+                <span class="demo-device-caption">Linux PC</span>
+              </div>
+              <div class="beam-pulses">
+                <div class="pulse-line"></div>
+                <div class="pulse-dot"></div>
+                <div class="beam-packet">
+                  <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                </div>
+              </div>
+              <div class="demo-device phone-device">
+                <div class="device-icon-wrap">
+                  <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+                </div>
+                <span class="demo-device-caption">Phone</span>
+              </div>
+            </div>
+          </div>
+          <h2>AirDrop for Linux</h2>
+          <p class="onboard-tagline">High-speed local peer-to-peer file sharing and clipboard synchronization between Linux desktops and mobile phones.</p>
+          <div class="onboard-pills">
+            <span class="pill-badge">Zero Phone Apps</span>
+            <span class="pill-badge">Gigabit Wi-Fi 6</span>
+            <span class="pill-badge">iOS & Android</span>
+          </div>
+        </div>
+
+        <!-- Slide 1: Camera QR Pairing -->
+        <div class="onboarding-slide" id="onboard-slide-1">
+          <div class="anim-container">
+            <div class="scan-demo">
+              <div class="scan-frame">
+                <div class="corner-tl"></div><div class="corner-tr"></div>
+                <div class="corner-bl"></div><div class="corner-br"></div>
+                <div class="scan-qr-sample">
+                  <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h2v2h-2v-2zm2 2h3v3h-3v-3zm-5 1h2v2h-2v-2z"/></svg>
+                </div>
+                <div class="scan-laser"></div>
+              </div>
+            </div>
+          </div>
+          <h2>Instant Camera QR Pairing</h2>
+          <p class="onboard-tagline">Connect phone to your PC's Wi-Fi hotspot or local network, point your phone camera at the QR code, and tap the link.</p>
+          <div class="onboard-steps-list">
+            <div class="step-badge">1. Connect Wi-Fi</div>
+            <div class="step-badge">2. Scan Camera QR</div>
+            <div class="step-badge">3. Transfer Instantly</div>
+          </div>
+        </div>
+
+        <!-- Slide 2: 8-Digit PIN Code Security (Tutorial & Explanation) -->
+        <div class="onboarding-slide" id="onboard-slide-2">
+          <div class="anim-container">
+            <div class="pin-demo-container">
+              <div class="pin-shield-badge">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div class="pin-demo-blocks">
+                <span class="pin-digit-box">8</span>
+                <span class="pin-digit-box">4</span>
+                <span class="pin-digit-box">9</span>
+                <span class="pin-digit-box">2</span>
+                <span class="pin-digit-sep">&bull;</span>
+                <span class="pin-digit-box">1</span>
+                <span class="pin-digit-box">0</span>
+                <span class="pin-digit-box">5</span>
+                <span class="pin-digit-box">8</span>
+              </div>
+              <div class="pin-demo-caption">8-Digit Pairing Code Generated on PC</div>
+            </div>
+          </div>
+          <h2>8-Digit Security PIN</h2>
+          <p class="onboard-tagline">When pairing over shared or public Wi-Fi, your Linux PC generates an 8-digit PIN. Connecting phones enter this PIN once to authorize transfers.</p>
+          <div class="onboard-pills">
+            <span class="pill-badge">8-Digit Security</span>
+            <span class="pill-badge">Brute-Force Locked (5 Tries)</span>
+            <span class="pill-badge">Host-Controlled</span>
+          </div>
+        </div>
+
+        <!-- Slide 3: Clipboard Sync & Folder Transfers -->
+        <div class="onboarding-slide" id="onboard-slide-3">
+          <div class="anim-container">
+            <div class="clipboard-demo">
+              <div class="clip-card-sample">
+                <div class="clip-header-sample">
+                  <span class="clip-tag">Desktop Clipboard</span>
+                  <span class="clip-shortcut">Ctrl+V Ready</span>
+                </div>
+                <div class="clip-content-sample">
+                  <code>console.log("AirDrop for Linux!");</code>
+                </div>
+              </div>
+              <div class="clip-arrow">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/><path d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+              </div>
+              <div class="phone-clip-preview">
+                <span>Mobile Clipboard Synced</span>
+              </div>
+            </div>
+          </div>
+          <h2>Clipboard & Folder Transfers</h2>
+          <p class="onboard-tagline">Copy photos or text on Linux and paste on phone — or vice-versa. Download whole nested directory trees as ZIP archives on-the-fly.</p>
+          <div class="onboard-pills">
+            <span class="pill-badge">Image & Text Clipboard</span>
+            <span class="pill-badge">Folder ZIP on-the-Fly</span>
+            <span class="pill-badge">Resumable 8MB Chunks</span>
+          </div>
+        </div>
+
+        <!-- Slide 4: Zero Telemetry & Phone App Installation -->
+        <div class="onboarding-slide" id="onboard-slide-4">
+          <div class="anim-container">
+            <div class="shield-demo">
+              <div class="shield-circle">
+                <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+              </div>
+              <div class="shield-glow-ring"></div>
+            </div>
+          </div>
+          <h2>100% Private & Open Source</h2>
+          <p class="onboard-tagline">No Login or Accounts. Zero Data Retention. Exactly 0 bytes leave your local physical network. On your phone, tap 'Install App' to add Hotspot Share directly to your home screen.</p>
+          <div class="onboard-pills">
+            <span class="pill-badge">0 Bytes to Internet</span>
+            <span class="pill-badge">Installable Phone PWA</span>
+            <span class="pill-badge">100% Open Source</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Fixed Footer Controls -->
+    <div class="onboarding-footer">
+      <div class="slide-dots" id="slideDots">
+        <span class="dot active" onclick="goToOnboardSlide(0)"></span>
+        <span class="dot" onclick="goToOnboardSlide(1)"></span>
+        <span class="dot" onclick="goToOnboardSlide(2)"></span>
+        <span class="dot" onclick="goToOnboardSlide(3)"></span>
+        <span class="dot" onclick="goToOnboardSlide(4)"></span>
+      </div>
+      <div class="onboard-nav-buttons">
+        <button type="button" class="btn-onboard-back" id="onboardBackBtn" onclick="prevOnboardSlide()" style="display:none;">Back</button>
+        <button type="button" class="btn-onboard-next" id="onboardNextBtn" onclick="nextOnboardSlide()">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/app.js?v=2.1.0"></script>
+</body>
+</html>

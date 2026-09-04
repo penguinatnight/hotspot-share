@@ -1,3 +1,12 @@
+hotspot-share (2.0.10-1) unstable; urgency=medium
+
+  * Add deep health-check to GUI launcher to verify HTTP 200 frontend response.
+  * Terminate any zombie backend process holding port 8080 across snap updates.
+  * Bundle web frontend assets directly inside Python package directory (hotspot_share/web).
+  * Expand fallback search to canonical /snap/hotspot-share/current paths.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Fri, 04 Sep 2026 12:45:00 +0300
+
 hotspot-share (2.0.9-1) unstable; urgency=medium
 
   * Fix About modal actions (GitHub link, re-open tour, close) and add /api/open-url handler.

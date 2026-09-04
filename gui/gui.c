@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <errno.h>
 #include <string.h>
 
@@ -75,6 +76,66 @@ static int read_port_from_runtime(void) {
     return 0;
 }
 
+static int read_pid_from_runtime(void) {
+    char *json_path = get_runtime_json_path();
+    FILE *f = fopen(json_path, "r");
+    free(json_path);
+    if (!f) return 0;
+
+    char buffer[1024];
+    size_t bytes = fread(buffer, 1, sizeof(buffer) - 1, f);
+    fclose(f);
+    buffer[bytes] = '\0';
+
+    char *pid_key = strstr(buffer, "\"pid\":");
+    if (pid_key) {
+        int pid = atoi(pid_key + 6);
+        if (pid > 0) {
+            return pid;
+        }
+    }
+    return 0;
+}
+
+static int check_server_healthy(int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return 0;
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr);
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 250000; // 250ms timeout
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
+
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) != 0) {
+        close(sock);
+        return 0;
+    }
+
+    const char *req = "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+    send(sock, req, strlen(req), 0);
+
+    char resp[2048];
+    memset(resp, 0, sizeof(resp));
+    int n = recv(sock, resp, sizeof(resp) - 1, 0);
+    close(sock);
+
+    if (n <= 0) return 0;
+
+    // Must be HTTP 200 and must NOT contain "Web frontend missing"
+    if (strstr(resp, "200 OK") != NULL && strstr(resp, "Web frontend missing") == NULL) {
+        return 1;
+    }
+
+    return 0;
+}
+
 static GdkPixbuf *find_app_icon(void) {
     // 1. Try GTK Icon Theme
     GtkIconTheme *theme = gtk_icon_theme_get_default();
@@ -119,22 +180,48 @@ static GdkPixbuf *find_app_icon(void) {
 }
 
 static void start_backend_server(int req_port) {
-    // Check if runtime file or port is already alive
+    // 1. Check if runtime file or port is already alive with a HEALTHY frontend
     int p = read_port_from_runtime();
-    if (p > 0 && check_socket(p)) {
+    if (p > 0 && check_server_healthy(p)) {
         active_port = p;
         snprintf(server_url, sizeof(server_url), "http://127.0.0.1:%d", active_port);
         return;
     }
 
-    if (check_socket(req_port)) {
+    if (check_server_healthy(req_port)) {
         active_port = req_port;
         snprintf(server_url, sizeof(server_url), "http://127.0.0.1:%d", active_port);
         return;
     }
 
+    // 2. If port is occupied by a stale zombie server (failed health check), terminate it
+    if (check_socket(req_port)) {
+        int stale_pid = read_pid_from_runtime();
+        if (stale_pid > 0 && stale_pid != getpid()) {
+            kill(stale_pid, SIGTERM);
+            usleep(150000); // 150ms
+            if (check_socket(req_port)) {
+                kill(stale_pid, SIGKILL);
+                usleep(150000); // 150ms
+            }
+        }
+        // If still occupied, pick an alternate port
+        if (check_socket(req_port)) {
+            for (int candidate = req_port + 1; candidate < req_port + MAX_PORT_ATTEMPTS; candidate++) {
+                if (!check_socket(candidate)) {
+                    req_port = candidate;
+                    break;
+                }
+            }
+        }
+    }
+
     server_pid = fork();
     if (server_pid == 0) {
+        #ifdef __linux__
+        prctl(PR_SET_PDEATHSIG, SIGTERM);
+        #endif
+
         char port_str[16];
         snprintf(port_str, sizeof(port_str), "%d", req_port);
 
@@ -159,16 +246,16 @@ static void start_backend_server(int req_port) {
         _exit(1);
     }
 
-    // Wait up to 3 seconds for server to become responsive
+    // Wait up to 3 seconds for server to become responsive and pass health check
     for (int i = 0; i < 60; i++) {
         usleep(50000); // 50ms
         int dyn_p = read_port_from_runtime();
-        if (dyn_p > 0 && check_socket(dyn_p)) {
+        if (dyn_p > 0 && check_server_healthy(dyn_p)) {
             active_port = dyn_p;
             snprintf(server_url, sizeof(server_url), "http://127.0.0.1:%d", active_port);
             return;
         }
-        if (check_socket(req_port)) {
+        if (check_server_healthy(req_port)) {
             active_port = req_port;
             snprintf(server_url, sizeof(server_url), "http://127.0.0.1:%d", active_port);
             return;
