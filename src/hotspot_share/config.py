@@ -100,19 +100,27 @@ def get_web_dir() -> Path:
             snap_root / "web",
         ])
 
-    # 3. Check relative to source repo (development / source checkout)
-    source_web = Path(__file__).resolve().parent.parent.parent / "web"
-    candidates.append(source_web)
-
-    # 4. Check within installed python package data
+    # 3. Check within installed python package data (reliable fallback bundled with code)
     pkg_web = Path(__file__).resolve().parent / "web"
     candidates.append(pkg_web)
 
-    # 5. Check standard system and user FHS locations
+    # 4. Check canonical Snap current symlink (in case SNAP revision path changed/unmounted)
+    snap_current = Path("/snap") / APP_NAME / "current"
     candidates.extend([
+        snap_current / "usr" / "share" / APP_NAME / "web",
+        snap_current / "share" / APP_NAME / "web",
+        snap_current / "web",
+    ])
+
+    # 5. Check relative to source repo (development / source checkout)
+    source_web = Path(__file__).resolve().parent.parent.parent / "web"
+    candidates.append(source_web)
+
+    # 6. Check standard system and user FHS locations
+    candidates.extend([
+        Path.home() / ".local" / "share" / APP_NAME / "web",
         Path("/usr/share") / APP_NAME / "web",
         Path("/usr/local/share") / APP_NAME / "web",
-        Path.home() / ".local" / "share" / APP_NAME / "web",
         Path(sys.prefix) / "share" / APP_NAME / "web",
         Path(sys.prefix) / "local" / "share" / APP_NAME / "web",
     ])
@@ -121,7 +129,16 @@ def get_web_dir() -> Path:
         if p and p.is_dir() and (p / "index.html").is_file():
             return p
 
-    return source_web
+    # 7. Fallback: scan candidate directories recursively if needed
+    for base in [pkg_web.parent, Path(__file__).resolve().parent.parent.parent]:
+        try:
+            found = list(base.glob("**/web/index.html"))
+            if found:
+                return found[0].parent
+        except Exception:
+            pass
+
+    return pkg_web if pkg_web.is_dir() else source_web
 
 def get_icon_file(size=512, ext="png") -> Path:
     # 1. Prioritize SNAP environment if running inside snap
