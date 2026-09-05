@@ -142,11 +142,24 @@ class BeamTracker:
             now = time.time()
             cls.beams = [b for b in cls.beams if now - b['time'] < 600]
             res = []
+            client_is_local = is_local_ip(client_ip)
+            try:
+                if not client_is_local and client_ip in get_local_ips():
+                    client_is_local = True
+            except Exception:
+                pass
+
+            # Host PC files are already written directly to ~/Desktop/from-phone.
+            # Local PC clients NEVER receive incoming beam download prompts.
+            if client_is_local:
+                return []
+
             for b in cls.beams:
                 if b['id'] not in cls.dismissed and (b['id'], client_ip) not in cls.dismissed:
-                    if is_local_ip(b['sender_ip']) and not is_local_ip(client_ip):
+                    sender_is_local = is_local_ip(b['sender_ip'])
+                    if sender_is_local and not client_is_local:
                         res.append(b)
-                    elif b['sender_ip'] != client_ip:
+                    elif b['sender_ip'] != client_ip and not sender_is_local:
                         res.append(b)
             return res
 
@@ -278,7 +291,14 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
     def is_client_local(self):
         client_ip = self.client_address[0]
-        return is_local_ip(client_ip) or client_ip == self.primary_ip
+        if is_local_ip(client_ip) or client_ip == self.primary_ip:
+            return True
+        try:
+            if client_ip in get_local_ips():
+                return True
+        except Exception:
+            pass
+        return False
 
     def check_auth(self, query=None):
         if not AuthManager.auth_enabled:
@@ -726,6 +746,22 @@ class HotspotHandler(BaseHTTPRequestHandler):
             self.send_json({'status': 'ok'})
             return
 
+        elif path in ('/api/open-folder', '/api/open_folder'):
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: Opening desktop folders is restricted to the host PC'}, status=403)
+                return
+            req_path = urllib.parse.unquote(query.get('path', [''])[0]).strip()
+            target = self.resolve_safe_path(req_path) if req_path else self.shared_dir.resolve()
+            if not target or not target.exists():
+                target = self.shared_dir.resolve()
+            target_dir = target if target.is_dir() else target.parent
+            try:
+                subprocess.Popen(['xdg-open', str(target_dir)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+            self.send_json({'status': 'ok'})
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self):
@@ -883,6 +919,24 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         elif path == '/api/cancel_all':
             TransferTracker.cancel_all()
+            self.send_json({'status': 'ok'})
+            return
+
+        elif path in ('/api/open-folder', '/api/open_folder'):
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: Opening desktop folders is restricted to the host PC'}, status=403)
+                return
+            data, _ = self.read_json_body(max_size=4096)
+            data = data or {}
+            req_path = (data.get('path') or query.get('path', [''])[0]).strip()
+            target = self.resolve_safe_path(req_path) if req_path else self.shared_dir.resolve()
+            if not target or not target.exists():
+                target = self.shared_dir.resolve()
+            target_dir = target if target.is_dir() else target.parent
+            try:
+                subprocess.Popen(['xdg-open', str(target_dir)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
             self.send_json({'status': 'ok'})
             return
 
