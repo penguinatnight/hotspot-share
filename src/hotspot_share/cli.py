@@ -145,6 +145,8 @@ def main():
         for ql in qr_lines:
             print_box_line(ql, "", W)
         print_box_line("", "", W)
+        print_box_line("  \033[93m★ Offline Tip:\033[0m If phone Mobile Data is ON without data bundle,", "", W)
+        print_box_line("  \033[90m  turn off Mobile Data on your phone so it routes via Wi-Fi.\033[0m", "", W)
         print("\033[1;37m├" + "─" * W + "┤\033[0m")
 
     print_box_line("  \033[1;37mACTIVITY LOG\033[0m", "\033[90m[Press Ctrl+C to stop]\033[0m  ", W)

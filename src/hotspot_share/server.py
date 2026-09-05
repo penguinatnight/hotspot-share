@@ -41,28 +41,59 @@ from .conflict import resolve_filename_conflict
 
 def get_local_ips():
     ips = []
-    # 1. Try socket connection to public DNS
+    # 0. Check if a Wi-Fi hotspot is currently active, and prioritize its IP
+    try:
+        hotspot_info = get_active_hotspot()
+        if hotspot_info.get("active") and hotspot_info.get("device"):
+            dev = hotspot_info["device"]
+            out = subprocess.check_output(
+                ["ip", "-4", "-o", "addr", "show", "dev", dev],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                parts = line.strip().split()
+                if len(parts) >= 4 and parts[2] == "inet":
+                    hip = parts[3].split('/')[0]
+                    if hip and not is_local_ip(hip) and hip not in ips:
+                        ips.append(hip)
+    except Exception:
+        pass
+
+    # 1. Try socket connection to public DNS (fast if online)
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.settimeout(0.2)
         s.connect(('8.8.8.8', 80))
         ip = s.getsockname()[0]
         s.close()
-        if ip and not is_local_ip(ip):
+        if ip and not is_local_ip(ip) and ip not in ips:
             ips.append(ip)
     except Exception:
         pass
 
-    # 2. Try parsing hostname / interfaces via hostname -I or ip route
+    # 2. Try parsing hostname / interfaces via hostname -I
     try:
         out = subprocess.check_output(['hostname', '-I'], text=True, stderr=subprocess.DEVNULL)
         for cand in out.strip().split():
             if cand and not is_local_ip(cand) and cand not in ips:
+                # Filter out known virtual/container bridges (libvirt, docker, podman)
+                if cand.startswith(('192.168.122.', '172.17.', '172.18.', '10.88.')):
+                    continue
                 ips.append(cand)
     except Exception:
         pass
 
-    # 3. Fallback
+    # 3. Fallback to any remaining candidate from hostname -I if list is empty
+    if not ips:
+        try:
+            out = subprocess.check_output(['hostname', '-I'], text=True, stderr=subprocess.DEVNULL)
+            for cand in out.strip().split():
+                if cand and not is_local_ip(cand) and cand not in ips:
+                    ips.append(cand)
+        except Exception:
+            pass
+
+    # 4. Final fallback
     if not ips:
         ips = ['127.0.0.1']
     return ips
@@ -352,6 +383,30 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
         web_dir = get_web_dir()
 
+        # Captive portal & connectivity check handlers (Android / iOS / Windows)
+        if path in ('/generate_204', '/gen_204'):
+            self.send_response(204)
+            self.end_headers()
+            return
+
+        if path in ('/hotspot-detect.html', '/canonical.html'):
+            body = b'<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path in ('/connecttest.txt', '/ncsi.txt'):
+            body = b'Microsoft Connect Test'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if path in ('/', '/index.html'):
             index_path = web_dir / "index.html"
             if index_path.exists():
@@ -468,6 +523,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
         # Status endpoint is public so mobile UI can check if PIN is required
         elif path == '/api/status':
             proto = "https" if getattr(self, 'is_ssl', False) else "http"
+            current_ips = get_local_ips()
+            if current_ips and (self.primary_ip not in current_ips or self.primary_ip in ('127.0.0.1', 'localhost')):
+                self.primary_ip = current_ips[0]
+                HotspotHandler.primary_ip = current_ips[0]
             server_url = f"{proto}://{self.primary_ip}:{self.server_port}"
             local_domain = f"{proto}://{socket.gethostname()}.local:{self.server_port}"
             phones = DeviceTracker.get_connected_phones()
@@ -945,6 +1004,12 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_json({'status': 'error', 'message': 'Security: Hotspot management is restricted to the host PC'}, status=403)
                 return
             res = start_hotspot()
+            if res.get("status") == "ok":
+                time.sleep(0.6)
+                ips = get_local_ips()
+                if ips:
+                    HotspotHandler.primary_ip = ips[0]
+                    self.primary_ip = ips[0]
             self.send_json(res)
             return
 
@@ -953,6 +1018,11 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 self.send_json({'status': 'error', 'message': 'Security: Hotspot management is restricted to the host PC'}, status=403)
                 return
             res = stop_hotspot()
+            time.sleep(0.4)
+            ips = get_local_ips()
+            if ips:
+                HotspotHandler.primary_ip = ips[0]
+                self.primary_ip = ips[0]
             self.send_json(res)
             return
 
