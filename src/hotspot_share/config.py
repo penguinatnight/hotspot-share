@@ -47,9 +47,17 @@ def get_runtime_dir() -> Path:
         return fallback
     return runtime_dir
 
+def get_user_home() -> Path:
+    real_home = os.environ.get("SNAP_REAL_HOME")
+    if real_home and Path(real_home).is_dir():
+        return Path(real_home)
+    return Path.home()
+
 def get_default_share_dir() -> Path:
+    user_home = get_user_home()
+
     # 1. Prioritize Desktop "from-phone" directory (user preferred default)
-    desktop = Path.home() / "Desktop"
+    desktop = user_home / "Desktop"
     if desktop.is_dir():
         from_phone_space = desktop / "from phone"
         if from_phone_space.is_dir():
@@ -66,13 +74,13 @@ def get_default_share_dir() -> Path:
         return target
 
     # 3. Check ~/.config/user-dirs.dirs
-    user_dirs_file = Path.home() / ".config" / "user-dirs.dirs"
+    user_dirs_file = user_home / ".config" / "user-dirs.dirs"
     if user_dirs_file.is_file():
         try:
             for line in user_dirs_file.read_text(encoding="utf-8", errors="ignore").splitlines():
                 if line.startswith("XDG_DOWNLOAD_DIR="):
                     val = line.split("=", 1)[1].strip('"\'')
-                    val = val.replace("$HOME", str(Path.home()))
+                    val = val.replace("$HOME", str(user_home))
                     p = Path(val)
                     if p.exists():
                         target = p / "from-phone"
@@ -82,10 +90,10 @@ def get_default_share_dir() -> Path:
             pass
 
     # 4. Fallbacks
-    if (Path.home() / "Downloads").exists():
-        target = Path.home() / "Downloads" / "from-phone"
+    if (user_home / "Downloads").exists():
+        target = user_home / "Downloads" / "from-phone"
     else:
-        target = Path.home() / "from-phone"
+        target = user_home / "from-phone"
     target.mkdir(parents=True, exist_ok=True)
     return target
 

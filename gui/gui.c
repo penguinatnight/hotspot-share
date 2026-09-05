@@ -379,7 +379,10 @@ static gboolean is_internal_server_uri(const gchar *uri) {
 }
 
 static void on_download_decide_destination(WebKitDownload *download, gchar *suggested_filename, gpointer user_data) {
-    const char *home = getenv("HOME");
+    const char *home = getenv("SNAP_REAL_HOME");
+    if (!home || strlen(home) == 0) {
+        home = getenv("HOME");
+    }
     char dest_dir[512];
     char dest_path[1024];
     if (home && strlen(home) > 0) {
