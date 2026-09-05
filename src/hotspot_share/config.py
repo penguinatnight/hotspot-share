@@ -48,14 +48,24 @@ def get_runtime_dir() -> Path:
     return runtime_dir
 
 def get_default_share_dir() -> Path:
-    # 1. Check XDG_DOWNLOAD_DIR env var
+    # 1. Prioritize Desktop "from-phone" directory (user preferred default)
+    desktop = Path.home() / "Desktop"
+    if desktop.is_dir():
+        from_phone_space = desktop / "from phone"
+        if from_phone_space.is_dir():
+            return from_phone_space
+        from_phone = desktop / "from-phone"
+        from_phone.mkdir(parents=True, exist_ok=True)
+        return from_phone
+
+    # 2. Check XDG_DOWNLOAD_DIR env var
     xdg_download = os.environ.get("XDG_DOWNLOAD_DIR")
     if xdg_download and Path(xdg_download).exists():
-        target = Path(xdg_download) / "HotspotShare"
+        target = Path(xdg_download) / "from-phone"
         target.mkdir(parents=True, exist_ok=True)
         return target
 
-    # 2. Check ~/.config/user-dirs.dirs
+    # 3. Check ~/.config/user-dirs.dirs
     user_dirs_file = Path.home() / ".config" / "user-dirs.dirs"
     if user_dirs_file.is_file():
         try:
@@ -65,19 +75,17 @@ def get_default_share_dir() -> Path:
                     val = val.replace("$HOME", str(Path.home()))
                     p = Path(val)
                     if p.exists():
-                        target = p / "HotspotShare"
+                        target = p / "from-phone"
                         target.mkdir(parents=True, exist_ok=True)
                         return target
         except Exception:
             pass
 
-    # 3. Fallbacks
+    # 4. Fallbacks
     if (Path.home() / "Downloads").exists():
-        target = Path.home() / "Downloads" / "HotspotShare"
-    elif (Path.home() / "Desktop").exists():
-        target = Path.home() / "Desktop" / "from-phone"
+        target = Path.home() / "Downloads" / "from-phone"
     else:
-        target = Path.home() / "HotspotShare"
+        target = Path.home() / "from-phone"
     target.mkdir(parents=True, exist_ok=True)
     return target
 

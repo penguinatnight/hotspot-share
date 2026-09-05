@@ -10,7 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="icon" type="image/png" sizes="512x512" href="/icon.png">
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/style.css?v=2.1.8">
+<link rel="stylesheet" href="/style.css?v=2.1.9">
 <script>
   try {
     const savedTheme = localStorage.getItem('theme') || 'light';
@@ -169,6 +169,10 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" id="searchInput" class="search-input" placeholder="Search files..." oninput="filterFiles()">
       </div>
+      <button class="btn-small pc-only-btn" id="btnOpenFolderInFiles" onclick="openSharedFolder(currentPath)" title="Open this folder in PC file manager">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>Open in Files</span>
+      </button>
       <button class="btn-small" onclick="promptNewFolder()" title="Create new directory">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>
         <span>+ Folder</span>
@@ -371,7 +375,7 @@
         </div>
         <div class="about-header-meta">
           <h1 class="about-app-title">Hotspot Share</h1>
-          <div class="about-version-text">Version 2.0.18</div>
+          <div class="about-version-text">Version 2.0.19</div>
           <p class="about-app-tagline">High-Performance Local Wi-Fi File Sharing &amp; Multimodal Sync</p>
         </div>
       </div>
@@ -685,6 +689,6 @@
 </div>
 </div>
 
-<script src="/app.js?v=2.1.8"></script>
+<script src="/app.js?v=2.1.9"></script>
 </body>
 </html>

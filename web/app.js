@@ -6,7 +6,7 @@ let cachedCustomModel = localStorage.getItem('hotspot_phone_model') || '';
 let cachedStorageGb = parseInt(localStorage.getItem('hotspot_phone_storage_gb') || '0', 10);
 let currentConnectedPhoneIp = '';
 let currentConnectedPhoneName = '';
-let isLocalClient = false;
+let isLocalClient = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '::1');
 let pcHostName = '';
 let activeServerTransferId = null;
 let onboardingTriggered = false;
@@ -941,8 +941,13 @@ async function sendHeartbeatAndPollStatus() {
       hidePinAuthScreen();
     }
     
-    isLocalClient = data.is_local_client;
+    isLocalClient = isLocalClient || !!data.is_local_client;
     pcHostName = data.pc_name || 'PC';
+    
+    const pcOpenFolderBtn = document.getElementById('btnOpenFolderInFiles');
+    if (pcOpenFolderBtn) {
+      pcOpenFolderBtn.style.display = isLocalClient ? 'inline-flex' : 'none';
+    }
     
     const beacon = document.getElementById('beaconDot');
     const deviceLabel = document.getElementById('deviceNameLabel');
@@ -1284,10 +1289,14 @@ function syncIncomingServerTransfers(transfers) {
     if (isCompleted) {
       if (!isLocal) {
         document.getElementById('summaryCount').innerText = `${sender} sent: ${filename}`;
-        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${encodeURIComponent(filename)}')">Save to Phone</button>`;
+        document.getElementById('summarySpeed').innerHTML = `<span style="color:var(--accent-blue, #0284c7);font-weight:600;">Downloading to Phone...</span>`;
+        if (!autoDownloadedBeams.has(r.id)) {
+          autoDownloadedBeams.add(r.id);
+          triggerDownload(`/api/download?path=${encodeURIComponent(r.rel_path || r.name)}`, filename);
+        }
       } else {
         document.getElementById('summaryCount').innerText = `Received from ${sender}: ${filename}`;
-        document.getElementById('summarySpeed').innerText = 'Completed';
+        document.getElementById('summarySpeed').innerHTML = `<span style="color:var(--accent-green, #10b981);font-weight:600;">Saved to Desktop/from-phone</span> <button type="button" class="btn-beam-open" onclick="openSharedFolder()">Open Folder</button>`;
       }
     } else {
       document.getElementById('summaryCount').innerText = `Transfer ${r.status}`;
@@ -1304,14 +1313,14 @@ function syncIncomingServerTransfers(transfers) {
         const badge = document.getElementById(`server-${r.id}-badge`);
         if (badge) {
           badge.className = isCompleted ? 'queue-badge done' : 'queue-badge cancelled';
-          badge.innerText = isCompleted ? 'Done' : (r.status === 'cancelled' ? 'Cancelled' : 'Failed');
+          badge.innerText = isCompleted ? (isLocal ? 'Saved' : 'Done') : (r.status === 'cancelled' ? 'Cancelled' : 'Failed');
         }
         const infoEl = document.getElementById(`server-${r.id}-info`);
         if (infoEl) {
           if (isCompleted && !isLocal) {
-            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${encodeURIComponent(filename)}')">Save to Phone</button>`;
+            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Downloading to Phone...`;
           } else {
-            infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
+            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone <button type="button" class="btn-beam-open" onclick="openSharedFolder()">Open Folder</button>' : r.status}`;
           }
         }
       }
@@ -1337,7 +1346,25 @@ function cancelServerTransfer(transferId) {
   }).catch(() => {});
 }
 
+function openSharedFolder(relPath = '') {
+  const query = relPath ? `?path=${encodeURIComponent(relPath)}` : '';
+  fetch(`/api/open-folder${query}`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ path: relPath })
+  }).then(r => r.json()).then(data => {
+    if (data && data.status === 'ok') {
+      showToast('Opening folder on PC...');
+    } else {
+      showToast(data.message || 'Could not open folder on PC');
+    }
+  }).catch(() => {
+    showToast('Failed to open folder on PC');
+  });
+}
+
 // AIRDROP BEAMS & DIRECT MOBILE DOWNLOAD ENGINE
+let autoDownloadedBeams = new Set();
 let dismissedBeams = new Set();
 let filesNeedRefresh = false;
 
@@ -1369,6 +1396,15 @@ function syncIncomingBeams(beams) {
   const countBadge = document.getElementById('beamCountBadge');
   if (!container) return;
 
+  // On the host PC, files are already directly written to ~/Desktop/from-phone.
+  // The host PC never displays incoming beam download cards.
+  if (isLocalClient) {
+    container.innerHTML = '';
+    container.classList.remove('active');
+    if (countBadge) countBadge.style.display = 'none';
+    return;
+  }
+
   const activeBeams = (beams || []).filter(b => !dismissedBeams.has(b.id));
 
   if (activeBeams.length === 0) {
@@ -1379,6 +1415,17 @@ function syncIncomingBeams(beams) {
     return;
   }
 
+  // On phone: automatically trigger download for incoming files!
+  activeBeams.forEach(b => {
+    if (!autoDownloadedBeams.has(b.id)) {
+      autoDownloadedBeams.add(b.id);
+      const isDir = b.is_dir;
+      const downloadUrl = `/api/download?path=${encodeURIComponent(b.rel_path || b.name)}`;
+      const filename = b.name + (isDir ? '.zip' : '');
+      triggerDownload(downloadUrl, filename, b.id);
+    }
+  });
+
   container.classList.add('active');
   const shouldShow = (activeTabId === 'upload' || activeTabId === 'files');
   container.style.display = shouldShow ? 'flex' : 'none';
@@ -1387,16 +1434,12 @@ function syncIncomingBeams(beams) {
     countBadge.style.display = 'inline-block';
   }
 
-  const isPhone = !isLocalClient;
-  const actionLabel = isPhone ? 'Save to Phone' : 'Download';
-
   let html = '';
   if (activeBeams.length > 1) {
     html += `
       <div class="beam-batch-header">
-        <span class="beam-batch-title">${activeBeams.length} items shared</span>
+        <span class="beam-batch-title">${activeBeams.length} items received</span>
         <div class="beam-batch-actions">
-          <button type="button" class="btn-beam-save-all" onclick="downloadAllBeams()">Save All</button>
           <button type="button" class="btn-beam-dismiss-all" onclick="dismissAllBeams()">Dismiss All</button>
         </div>
       </div>
@@ -1405,7 +1448,6 @@ function syncIncomingBeams(beams) {
 
   html += activeBeams.map(b => {
     const isDir = b.is_dir;
-    const downloadUrl = `/api/download?path=${encodeURIComponent(b.rel_path || b.name)}`;
     const fileDesc = isDir ? 'Folder' : formatBytes(b.size);
     return `
       <div class="beam-card" id="beam-${b.id}">
@@ -1414,14 +1456,12 @@ function syncIncomingBeams(beams) {
             <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
           </div>
           <div class="beam-card-meta">
-            <div class="beam-card-title">AirDrop from ${escapeHtml(b.sender)}</div>
+            <div class="beam-card-title">Received from ${escapeHtml(b.sender)}</div>
             <div class="beam-card-name" title="${escapeHtml(b.name)}">${escapeHtml(b.name)} (${fileDesc})</div>
           </div>
         </div>
         <div class="beam-card-actions">
-          <button type="button" class="btn-beam-save" onclick="triggerDownload('${downloadUrl}', '${encodeURIComponent(b.name + (isDir ? '.zip' : ''))}', '${encodeURIComponent(b.id)}')">
-            ${actionLabel}
-          </button>
+          <span style="font-size:12px;font-weight:600;color:var(--accent-green, #10b981);">Downloading to Phone</span>
           <button type="button" class="btn-beam-dismiss" onclick="dismissBeam('${b.id}')" title="Dismiss">✕</button>
         </div>
       </div>
@@ -1430,6 +1470,13 @@ function syncIncomingBeams(beams) {
 
   container.innerHTML = html;
   updateFilesBadge(activeBeams.length);
+
+  // Auto-dismiss downloaded cards after 3.5s so they don't linger on phone screen
+  activeBeams.forEach(b => {
+    setTimeout(() => {
+      dismissBeam(b.id);
+    }, 3500);
+  });
 }
 
 function dismissBeam(beamId) {
@@ -2050,6 +2097,7 @@ function updateSummaryBanner() {
   document.getElementById('summaryProgressFill').style.width = pct + '%';
   
   if (completedFilesCount === totalFilesCount && activeUploads === 0) {
+    document.getElementById('summaryCount').innerText = isLocalClient ? `Sent ${completedFilesCount} files to phone` : `Uploaded ${completedFilesCount} files to PC`;
     document.getElementById('summarySpeed').innerText = 'Complete';
     document.getElementById('summaryEta').innerText = '';
     document.getElementById('summaryCancelBtn').style.display = 'none';
@@ -2201,7 +2249,7 @@ function uploadTaskChunk(task, offset) {
       const pctEl = document.getElementById(`${task.cardId}-pct`);
       if (pctEl) pctEl.innerText = '100%';
       const info = document.getElementById(`${task.cardId}-info`);
-      if (info) info.innerText = `${formatBytes(task.file.size)} • Done`;
+      if (info) info.innerText = `${formatBytes(task.file.size)} • ${isLocalClient ? 'Sent to Phone' : 'Uploaded to PC'}`;
       
       const cancelBtn = document.getElementById(`${task.cardId}-cancel`);
       if (cancelBtn) cancelBtn.style.display = 'none';
@@ -2209,7 +2257,7 @@ function uploadTaskChunk(task, offset) {
       const badge = document.getElementById(`${task.cardId}-badge`);
       if (badge) {
         badge.className = 'queue-badge done';
-        badge.innerText = 'Done';
+        badge.innerText = isLocalClient ? 'Sent' : 'Done';
       }
       updateSummaryBanner();
       processQueue();
@@ -2391,7 +2439,7 @@ function renderFiles(items) {
           </div>
           <div class="file-actions">
             <button class="action-btn" onclick="loadFiles('${encodeURIComponent(item.path)}')">Open</button>
-            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}.zip">ZIP</a>
+            ${isLocalClient ? `<button class="action-btn" onclick="openSharedFolder('${encodeURIComponent(item.path)}')">Show in Files</button>` : `<a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}.zip">ZIP</a>`}
             <button class="action-btn btn-del" onclick="deleteItem('${encodeURIComponent(item.path)}', true)">Delete</button>
           </div>
         </div>
@@ -2408,7 +2456,7 @@ function renderFiles(items) {
           </div>
           <div class="file-actions">
             ${canPreview(item.name) ? `<button class="action-btn" onclick="previewFile('${encodeURIComponent(item.path)}')">Preview</button>` : ''}
-            <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}">Download</a>
+            ${isLocalClient ? `<button class="action-btn" onclick="openSharedFolder('${encodeURIComponent(item.path)}')">Show in Files</button>` : `<a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}">Download</a>`}
             <button class="action-btn btn-del" onclick="deleteItem('${encodeURIComponent(item.path)}', false)">Delete</button>
           </div>
         </div>

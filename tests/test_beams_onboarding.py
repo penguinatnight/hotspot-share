@@ -32,6 +32,25 @@ class TestBeamsAndOnboarding(unittest.TestCase):
         self.assertEqual(phone_beams[0]["size"], 1024)
         self.assertFalse(phone_beams[0]["is_dir"])
 
+    def test_beam_tracker_phone_to_pc_suppressed_for_local_pc(self):
+        # Phone sends file to PC
+        BeamTracker.add_beam(
+            beam_id="b_phone",
+            name="movie.mkv",
+            rel_path="movie.mkv",
+            size=1024*1024,
+            is_dir=False,
+            sender_name="Pixel 8",
+            sender_ip="192.168.1.50"
+        )
+        # PC viewing /api/status does NOT see incoming beam because it's already on PC disk
+        pc_beams = BeamTracker.get_active_beams("127.0.0.1")
+        self.assertEqual(len(pc_beams), 0)
+
+        # Another phone (192.168.1.51) sees incoming beam from Phone
+        other_phone_beams = BeamTracker.get_active_beams("192.168.1.51")
+        self.assertEqual(len(other_phone_beams), 1)
+
     def test_beam_tracker_folder(self):
         # PC sends a folder
         BeamTracker.add_beam(
@@ -354,8 +373,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.8", html)
-        self.assertIn("hotspot-share-v2.1.8", sw_js)
+        self.assertIn("v=2.1.9", html)
+        self.assertIn("hotspot-share-v2.1.9", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)

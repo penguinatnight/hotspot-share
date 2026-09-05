@@ -1,3 +1,14 @@
+hotspot-share (2.0.19-1) unstable; urgency=medium
+
+  * Set default destination folder strictly to ~/Desktop/from-phone.
+  * Eliminate confusing download prompt state on host PC for completed transfers.
+  * Automatically download incoming files on mobile phones without stuck download state.
+  * Add WebKitGTK download handler saving directly into ~/Desktop/from-phone.
+  * Add /api/open-folder endpoint and desktop "Open Folder" action.
+  * Suppress redundant AirDrop beam notifications for localhost PC client.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Sat, 05 Sep 2026 12:45:00 +0300
+
 hotspot-share (2.0.18-1) unstable; urgency=medium
 
   * Harden HTTP Range header parsing against malformed offsets and RFC 7233 violations.

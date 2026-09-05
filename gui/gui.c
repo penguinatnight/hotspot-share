@@ -378,7 +378,38 @@ static gboolean is_internal_server_uri(const gchar *uri) {
     return FALSE;
 }
 
+static void on_download_decide_destination(WebKitDownload *download, gchar *suggested_filename, gpointer user_data) {
+    const char *home = getenv("HOME");
+    char dest_dir[512];
+    char dest_path[1024];
+    if (home && strlen(home) > 0) {
+        snprintf(dest_dir, sizeof(dest_dir), "%s/Desktop/from-phone", home);
+        g_mkdir_with_parents(dest_dir, 0755);
+        snprintf(dest_path, sizeof(dest_path), "%s/%s", dest_dir, (suggested_filename && strlen(suggested_filename) > 0) ? suggested_filename : "download");
+    } else {
+        snprintf(dest_path, sizeof(dest_path), "/tmp/%s", (suggested_filename && strlen(suggested_filename) > 0) ? suggested_filename : "download");
+    }
+    gchar *dest_uri = g_filename_to_uri(dest_path, NULL, NULL);
+    if (dest_uri) {
+        webkit_download_set_destination(download, dest_uri);
+        webkit_download_set_allow_overwrite(download, TRUE);
+        g_free(dest_uri);
+    }
+}
+
+static void on_download_started(WebKitWebContext *context, WebKitDownload *download, gpointer user_data) {
+    g_signal_connect(download, "decide-destination", G_CALLBACK(on_download_decide_destination), NULL);
+}
+
 static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *decision, WebKitPolicyDecisionType type, gpointer user_data) {
+    if (type == WEBKIT_POLICY_DECISION_TYPE_RESPONSE) {
+        WebKitResponsePolicyDecision *r_decision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
+        if (!webkit_response_policy_decision_is_mime_type_supported(r_decision)) {
+            webkit_policy_decision_download(decision);
+            return TRUE;
+        }
+        return FALSE;
+    }
     if (type == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION || type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) {
         WebKitNavigationPolicyDecision *nav_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
         WebKitNavigationAction *action = webkit_navigation_policy_decision_get_navigation_action(nav_decision);
@@ -522,6 +553,7 @@ int main(int argc, char *argv[]) {
     // Disable stale disk caching so user always sees the latest live UI
     WebKitWebContext *web_context = webkit_web_view_get_context(WEBKIT_WEB_VIEW(web_view));
     if (web_context) {
+        g_signal_connect(web_context, "download-started", G_CALLBACK(on_download_started), NULL);
         webkit_web_context_set_cache_model(web_context, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
         webkit_web_context_clear_cache(web_context);
         webkit_web_context_set_network_proxy_settings(web_context, WEBKIT_NETWORK_PROXY_MODE_NO_PROXY, NULL);

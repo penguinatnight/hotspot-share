@@ -79,6 +79,19 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.19" date="2026-09-05">
+      <description>
+        <p>Direct auto-saving, destination directory fixes, and download state improvements:</p>
+        <ul>
+          <li>Save all transferred files directly to ~/Desktop/from-phone.</li>
+          <li>Eliminate confusing download prompt state on PC for files already delivered to disk.</li>
+          <li>Automatically trigger download on phone when transfers complete.</li>
+          <li>Add WebKitGTK download handler saving directly into ~/Desktop/from-phone.</li>
+          <li>Add /api/open-folder endpoint and desktop Open Folder action in file manager.</li>
+          <li>Suppress redundant AirDrop beam notifications for localhost PC client.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.18" date="2026-09-05">
       <description>
         <p>Hardening edge cases, HTTP Range crash prevention, and protocol security:</p>
