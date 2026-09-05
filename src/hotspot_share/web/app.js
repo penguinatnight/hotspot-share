@@ -1284,7 +1284,7 @@ function syncIncomingServerTransfers(transfers) {
     if (isCompleted) {
       if (!isLocal) {
         document.getElementById('summaryCount').innerText = `${sender} sent: ${filename}`;
-        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone</button>`;
+        document.getElementById('summarySpeed').innerHTML = `<button type="button" class="btn-beam-save" style="padding:4px 10px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${encodeURIComponent(filename)}')">Save to Phone</button>`;
       } else {
         document.getElementById('summaryCount').innerText = `Received from ${sender}: ${filename}`;
         document.getElementById('summarySpeed').innerText = 'Completed';
@@ -1309,7 +1309,7 @@ function syncIncomingServerTransfers(transfers) {
         const infoEl = document.getElementById(`server-${r.id}-info`);
         if (infoEl) {
           if (isCompleted && !isLocal) {
-            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${escapeHtml(filename)}')">Save to Phone</button>`;
+            infoEl.innerHTML = `${formatBytes(r.total_bytes || 0)} • Ready on PC • <button type="button" class="btn-beam-save" style="margin-left:8px;padding:3px 8px;font-size:11px;" onclick="triggerDownload('/api/download?path=${encodeURIComponent(r.rel_path || r.name)}', '${encodeURIComponent(filename)}')">Save to Phone</button>`;
           } else {
             infoEl.innerText = `${formatBytes(r.total_bytes || 0)} • ${isCompleted ? 'Saved to Desktop/from-phone' : r.status}`;
           }
@@ -1342,6 +1342,9 @@ let dismissedBeams = new Set();
 let filesNeedRefresh = false;
 
 function triggerDownload(url, filename, beamId) {
+  if (typeof filename === 'string' && filename.includes('%')) {
+    try { filename = decodeURIComponent(filename); } catch (_) {}
+  }
   const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
   const fullUrl = url + (url.includes('?') ? tokenQuery : `?${tokenQuery.slice(1)}`);
   const a = document.createElement('a');
@@ -1357,40 +1360,41 @@ function triggerDownload(url, filename, beamId) {
   showToast(`Downloading ${filename} to Phone...`);
 
   if (beamId) {
-    dismissBeam(beamId);
+    dismissBeam(decodeURIComponent(beamId));
   }
 }
 
 function syncIncomingBeams(beams) {
   const container = document.getElementById('incomingBeamsContainer');
+  const countBadge = document.getElementById('beamCountBadge');
   if (!container) return;
 
-  if (!beams || beams.length === 0) {
-    container.style.display = 'none';
-    container.innerHTML = '';
-    return;
-  }
+  const activeBeams = (beams || []).filter(b => !dismissedBeams.has(b.id));
 
-  const activeBeams = beams.filter(b => !dismissedBeams.has(b.id));
   if (activeBeams.length === 0) {
-    container.style.display = 'none';
     container.innerHTML = '';
+    container.classList.remove('active');
+    if (countBadge) countBadge.style.display = 'none';
+    updateFilesBadge(0);
     return;
   }
 
-  // Only display incoming beams on upload or files tabs so they never conceal About / Security / Clipboard
+  container.classList.add('active');
   const shouldShow = (activeTabId === 'upload' || activeTabId === 'files');
   container.style.display = shouldShow ? 'flex' : 'none';
+  if (countBadge) {
+    countBadge.innerText = activeBeams.length;
+    countBadge.style.display = 'inline-block';
+  }
+
+  const isPhone = !isLocalClient;
+  const actionLabel = isPhone ? 'Save to Phone' : 'Download';
 
   let html = '';
   if (activeBeams.length > 1) {
-    const totalBytes = activeBeams.reduce((acc, b) => acc + (b.size || 0), 0);
-    const sender = activeBeams[0].sender || 'PC';
     html += `
       <div class="beam-batch-header">
-        <div class="beam-batch-info">
-          <span>AirDrop from <b>${escapeHtml(sender)}</b>: <b>${activeBeams.length} files</b> (${formatBytes(totalBytes)})</span>
-        </div>
+        <span class="beam-batch-title">${activeBeams.length} items shared</span>
         <div class="beam-batch-actions">
           <button type="button" class="btn-beam-save-all" onclick="downloadAllBeams()">Save All</button>
           <button type="button" class="btn-beam-dismiss-all" onclick="dismissAllBeams()">Dismiss All</button>
@@ -1400,12 +1404,9 @@ function syncIncomingBeams(beams) {
   }
 
   html += activeBeams.map(b => {
-    const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
-    const downloadUrl = `/api/download?path=${encodeURIComponent(b.path)}${tokenQuery}`;
     const isDir = b.is_dir;
-    const actionLabel = isDir ? 'Save ZIP' : 'Save to Phone';
-    const fileDesc = isDir ? `Folder (${formatBytes(b.size)})` : formatBytes(b.size);
-
+    const downloadUrl = `/api/download?path=${encodeURIComponent(b.rel_path || b.name)}`;
+    const fileDesc = isDir ? 'Folder' : formatBytes(b.size);
     return `
       <div class="beam-card" id="beam-${b.id}">
         <div class="beam-card-left">
@@ -1418,7 +1419,7 @@ function syncIncomingBeams(beams) {
           </div>
         </div>
         <div class="beam-card-actions">
-          <button type="button" class="btn-beam-save" onclick="triggerDownload('${downloadUrl}', '${escapeHtml(b.name)}${isDir ? '.zip' : ''}', '${b.id}')">
+          <button type="button" class="btn-beam-save" onclick="triggerDownload('${downloadUrl}', '${encodeURIComponent(b.name + (isDir ? '.zip' : ''))}', '${encodeURIComponent(b.id)}')">
             ${actionLabel}
           </button>
           <button type="button" class="btn-beam-dismiss" onclick="dismissBeam('${b.id}')" title="Dismiss">✕</button>
@@ -2316,6 +2317,9 @@ function handleUploadError(task, errorMsg) {
 // ==============================================================================
 
 async function loadFiles(path = currentPath) {
+  if (typeof path === 'string' && path.includes('%')) {
+    try { path = decodeURIComponent(path); } catch (_) {}
+  }
   currentPath = path;
   renderBreadcrumbs();
   const container = document.getElementById('fileList');
@@ -2349,7 +2353,7 @@ function renderBreadcrumbs() {
       html += `<span class="crumb-current">${escapeHtml(p)}</span>`;
     } else {
       const target = accumulated;
-      html += `<span class="crumb" onclick="loadFiles('${escapeHtml(target)}')">${escapeHtml(p)}</span>`;
+      html += `<span class="crumb" onclick="loadFiles('${encodeURIComponent(target)}')">${escapeHtml(p)}</span>`;
     }
   });
   container.innerHTML = html;
@@ -2378,7 +2382,7 @@ function renderFiles(items) {
     if (item.is_dir) {
       return `
         <div class="file-item is-folder">
-          <div class="file-info" onclick="loadFiles('${escapeHtml(item.path)}')">
+          <div class="file-info" onclick="loadFiles('${encodeURIComponent(item.path)}')">
             <svg class="file-icon" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
             <div class="file-details">
               <div class="file-title">${escapeHtml(item.name)}/</div>
@@ -2386,7 +2390,7 @@ function renderFiles(items) {
             </div>
           </div>
           <div class="file-actions">
-            <button class="action-btn" onclick="loadFiles('${escapeHtml(item.path)}')">Open</button>
+            <button class="action-btn" onclick="loadFiles('${encodeURIComponent(item.path)}')">Open</button>
             <a class="action-btn" href="/api/download?path=${encodeURIComponent(item.path)}${tokenQuery}" download="${escapeHtml(item.name)}.zip">ZIP</a>
             <button class="action-btn btn-del" onclick="deleteItem('${encodeURIComponent(item.path)}', true)">Delete</button>
           </div>
@@ -2766,7 +2770,13 @@ function copyClip() {
 }
 
 function escapeHtml(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
 }
 
 function updateThemeUI(theme) {

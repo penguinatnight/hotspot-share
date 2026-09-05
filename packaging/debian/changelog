@@ -1,3 +1,13 @@
+hotspot-share (2.0.17-1) unstable; urgency=medium
+
+  * Comprehensive security hardening, CORS restriction, and DNS rebinding mitigations.
+  * Fix stored XSS attribute escaping in file/folder lists and AirDrop beams.
+  * Restrict remote hotspot interface management and enforce strict bearer token auth.
+  * Download endpoint isolation: Content-Disposition, nosniff, and CSP sandbox for HTML/SVG.
+  * WebKit desktop GUI navigation policy prefix fix, PID check hardening, and compiler binary flags.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Sat, 05 Sep 2026 10:15:00 +0300
+
 hotspot-share (2.0.16-1) unstable; urgency=medium
 
   * Prevent UDP broadcast loopstorms by strictly replying to active ping/discover queries.

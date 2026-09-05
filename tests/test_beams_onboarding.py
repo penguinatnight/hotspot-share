@@ -354,8 +354,8 @@ class TestBeamsAndOnboarding(unittest.TestCase):
 
         # 3. Static assets Cache-Control must prevent stale caching
         self.assertIn("self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')", server_py)
-        self.assertIn("v=2.1.6", html)
-        self.assertIn("hotspot-share-v2.1.6", sw_js)
+        self.assertIn("v=2.1.7", html)
+        self.assertIn("hotspot-share-v2.1.7", sw_js)
 
         # 4. PIN input sanitization in backend (strip spaces & dashes)
         self.assertIn("re.sub(r'[\\s\\-]+', '', raw_val)", server_py)

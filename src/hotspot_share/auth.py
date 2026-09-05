@@ -111,23 +111,13 @@ class AuthManager:
 
             now = time.time()
 
-            # If token is provided, authenticate strictly by token
-            if token:
-                if token in cls.authorized_tokens:
-                    entry = cls.authorized_tokens[token]
-                    if now - entry.get('created', 0) < cls.TOKEN_TTL:
-                        return True
-                    else:
-                        cls.authorized_tokens.pop(token, None)
-                return False
-
-            # Check IP fallback only when no token is provided
-            if client_ip in cls.authorized_ips:
-                auth_time = cls.authorized_ips[client_ip]
-                if now - auth_time < cls.TOKEN_TTL:
+            # For remote clients, enforce strict token validation
+            if token and token in cls.authorized_tokens:
+                entry = cls.authorized_tokens[token]
+                if now - entry.get('created', 0) < cls.TOKEN_TTL:
                     return True
                 else:
-                    cls.authorized_ips.pop(client_ip, None)
+                    cls.authorized_tokens.pop(token, None)
 
             return False
 
