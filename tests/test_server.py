@@ -240,5 +240,24 @@ class TestServer(unittest.TestCase):
             manifest = json.loads(resp.read().decode("utf-8"))
             self.assertEqual(manifest.get("name"), "Hotspot Share")
 
+    def test_captive_portal_endpoints(self):
+        # Android generate_204
+        with urllib.request.urlopen(f"{self.base_url}/generate_204") as resp:
+            self.assertEqual(resp.status, 204)
+
+        # Android gen_204
+        with urllib.request.urlopen(f"{self.base_url}/gen_204") as resp:
+            self.assertEqual(resp.status, 204)
+
+        # Apple hotspot-detect.html
+        with urllib.request.urlopen(f"{self.base_url}/hotspot-detect.html") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn(b"<TITLE>Success</TITLE>", resp.read())
+
+        # Windows connecttest.txt
+        with urllib.request.urlopen(f"{self.base_url}/connecttest.txt") as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(resp.read(), b"Microsoft Connect Test")
+
 if __name__ == "__main__":
     unittest.main()
