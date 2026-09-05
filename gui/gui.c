@@ -384,12 +384,15 @@ static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *
         WebKitNavigationAction *action = webkit_navigation_policy_decision_get_navigation_action(nav_decision);
         WebKitURIRequest *request = webkit_navigation_action_get_request(action);
         const gchar *uri = webkit_uri_request_get_uri(request);
-        if (uri && (g_str_has_prefix(uri, "http://") || g_str_has_prefix(uri, "https://") || g_str_has_prefix(uri, "mailto:"))) {
-            if (!is_internal_server_uri(uri)) {
-                gtk_show_uri_on_window(GTK_WINDOW(main_window), uri, GDK_CURRENT_TIME, NULL);
-                webkit_policy_decision_ignore(decision);
-                return TRUE;
+        if (uri) {
+            if (is_internal_server_uri(uri)) {
+                return FALSE;
             }
+            if (g_str_has_prefix(uri, "http://") || g_str_has_prefix(uri, "https://") || g_str_has_prefix(uri, "mailto:")) {
+                gtk_show_uri_on_window(GTK_WINDOW(main_window), uri, GDK_CURRENT_TIME, NULL);
+            }
+            webkit_policy_decision_ignore(decision);
+            return TRUE;
         }
     }
     return FALSE;
@@ -443,6 +446,7 @@ static void on_webview_zoom_level_changed(WebKitWebView *web_view, GParamSpec *p
 int main(int argc, char *argv[]) {
     g_set_prgname("hotspot-share");
     g_set_application_name("Hotspot Share");
+    signal(SIGCHLD, SIG_IGN);
     setenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1", 1);
     setenv("GIO_USE_NETWORK_MONITOR", "base", 1);
     setenv("NO_AT_BRIDGE", "1", 1);

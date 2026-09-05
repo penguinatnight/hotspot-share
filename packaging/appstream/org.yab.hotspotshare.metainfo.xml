@@ -79,6 +79,19 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="2.0.18" date="2026-09-05">
+      <description>
+        <p>Hardening edge cases, HTTP Range crash prevention, and protocol security:</p>
+        <ul>
+          <li>Harden HTTP Range header parsing against malformed offsets and RFC 7233 violations.</li>
+          <li>Restrict desktop URL launching (/api/open-url) strictly to the host machine.</li>
+          <li>Fix symlink directory deletion to unlink symlinks without traversing into target directories.</li>
+          <li>Improve ZIP archive generation resilience against ephemeral locked or unlinked files.</li>
+          <li>Block non-HTTP protocols in WebKit desktop shell and enable automatic child process reaping.</li>
+          <li>Add accurate error toasts for blocked remote file deletions on mobile web.</li>
+        </ul>
+      </description>
+    </release>
     <release version="2.0.17" date="2026-09-05">
       <description>
         <p>Pre-release security audit, vulnerability fixes, and binary hardening:</p>

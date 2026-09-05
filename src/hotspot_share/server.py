@@ -590,7 +590,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
                                         if not (res_link == base_resolved or res_link.is_relative_to(base_resolved)):
                                             continue
                                     arcname = full_file_path.relative_to(target_path)
-                                    zf.write(full_file_path, arcname)
+                                    try:
+                                        zf.write(full_file_path, arcname)
+                                    except (OSError, PermissionError):
+                                        continue
                     temp_zip.close()
 
                     zip_size = temp_zip_path.stat().st_size
@@ -642,10 +645,16 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
             range_header = self.headers.get('Range')
             if range_header and range_header.startswith('bytes='):
-                ranges = range_header[6:].split('-')
-                start = int(ranges[0]) if ranges[0] else 0
-                end = int(ranges[1]) if ranges[1] else file_size - 1
-                if start >= file_size or end >= file_size or start > end:
+                try:
+                    ranges = range_header[6:].split('-', 1)
+                    start = int(ranges[0]) if ranges[0] else 0
+                    end = int(ranges[1]) if (len(ranges) > 1 and ranges[1]) else file_size - 1
+                    if start < 0 or end < 0 or start >= file_size or end >= file_size or start > end:
+                        self.send_response(416)
+                        self.send_header('Content-Range', f'bytes */{file_size}')
+                        self.end_headers()
+                        return
+                except (ValueError, TypeError, IndexError):
                     self.send_response(416)
                     self.send_header('Content-Range', f'bytes */{file_size}')
                     self.end_headers()
@@ -705,6 +714,9 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/open-url':
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: Opening desktop URLs is restricted to the host PC'}, status=403)
+                return
             url = query.get('url', [''])[0]
             if url and (url.startswith('https://') or url.startswith('http://') or url.startswith('mailto:')):
                 try:
@@ -1129,13 +1141,33 @@ class HotspotHandler(BaseHTTPRequestHandler):
                 return
 
             req_path = query.get('path', [''])[0]
-            target = self.resolve_safe_path(req_path)
+            clean_rel = os.path.normpath(urllib.parse.unquote(req_path or '')).lstrip('/')
             base = self.shared_dir.resolve()
+            if clean_rel in ('.', '', '..'):
+                self.send_error(404, "Cannot delete root shared directory")
+                return
+
+            entry_path = base / clean_rel
+            try:
+                resolved_entry = entry_path.resolve()
+                if not (resolved_entry == base or resolved_entry.is_relative_to(base)):
+                    self.send_error(404, "Item not found")
+                    return
+            except Exception:
+                self.send_error(404, "Item not found")
+                return
+
+            if entry_path.is_symlink():
+                display_name = str(entry_path.relative_to(base))
+                entry_path.unlink()
+                print(f" \033[90m{t_stamp}\033[0m  \033[31m[DELETE]    \033[0m {display_name} (symlink unlinked)")
+                self.send_json({'status': 'ok'})
+                return
+
+            target = resolved_entry
             if target and target.exists() and target != base:
                 display_name = str(target.relative_to(base))
-                if target.is_symlink():
-                    target.unlink()
-                elif target.is_dir():
+                if target.is_dir():
                     shutil.rmtree(target)
                 else:
                     target.unlink()

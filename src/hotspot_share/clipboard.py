@@ -62,12 +62,15 @@ def set_system_clipboard_image(raw_bytes: bytes, mime: str = 'image/png') -> boo
     return False
 
 def get_system_clipboard() -> dict:
+    # Max 15MB image in clipboard to prevent OOM
+    MAX_CLIPBOARD_IMAGE_BYTES = 15 * 1024 * 1024
+
     # 1. Try Wayland wl-paste
     if shutil.which("wl-paste"):
         # Check image first
         try:
             res = subprocess.run(["wl-paste", "--type", "image/png"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=1)
-            if res.returncode == 0 and res.stdout:
+            if res.returncode == 0 and res.stdout and len(res.stdout) <= MAX_CLIPBOARD_IMAGE_BYTES:
                 b64 = base64.b64encode(res.stdout).decode('ascii')
                 return {'type': 'image', 'mime': 'image/png', 'data': f"data:image/png;base64,{b64}"}
         except Exception:
@@ -84,7 +87,7 @@ def get_system_clipboard() -> dict:
     if shutil.which("xclip"):
         try:
             res = subprocess.run(["xclip", "-selection", "clipboard", "-target", "image/png", "-out"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=1)
-            if res.returncode == 0 and res.stdout:
+            if res.returncode == 0 and res.stdout and len(res.stdout) <= MAX_CLIPBOARD_IMAGE_BYTES:
                 b64 = base64.b64encode(res.stdout).decode('ascii')
                 return {'type': 'image', 'mime': 'image/png', 'data': f"data:image/png;base64,{b64}"}
         except Exception:

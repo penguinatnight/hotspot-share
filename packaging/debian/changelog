@@ -1,3 +1,14 @@
+hotspot-share (2.0.18-1) unstable; urgency=medium
+
+  * Harden HTTP Range header parsing against malformed offsets and RFC 7233 violations.
+  * Restrict desktop URL launching (/api/open-url) strictly to the host machine.
+  * Fix symlink directory deletion to unlink symlinks without traversing into target directories.
+  * Improve ZIP archive generation resilience against ephemeral locked or unlinked files.
+  * Block non-HTTP protocols in WebKit desktop shell and enable automatic child process reaping.
+  * Add accurate error toasts for blocked remote file deletions on mobile web.
+
+ -- penguinatnight <penguinatnight1@gmail.com>  Sat, 05 Sep 2026 11:15:00 +0300
+
 hotspot-share (2.0.17-1) unstable; urgency=medium
 
   * Comprehensive security hardening, CORS restriction, and DNS rebinding mitigations.
