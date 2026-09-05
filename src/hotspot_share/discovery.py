@@ -5,6 +5,7 @@ import threading
 import logging
 import uuid
 from typing import Optional
+from . import __version__
 
 DISCOVERY_PORT = 53535
 MAGIC_HEADER = "HOTSPOT_SHARE_DISCOVERY"
@@ -28,7 +29,7 @@ class DiscoveryBeacon:
         info = {
             "magic": MAGIC_HEADER,
             "app": "hotspot-share",
-            "version": "2.0.0",
+            "version": __version__,
             "name": self.pc_name,
             "url": self.server_url,
             "pin_required": self.pin_required,

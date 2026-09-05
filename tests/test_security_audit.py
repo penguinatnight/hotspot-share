@@ -121,5 +121,47 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertFalse(link_inside.is_symlink())
         self.assertEqual(link_inside.read_bytes(), upload_content)
 
+    def test_range_header_malformed_or_invalid_returns_416(self):
+        test_file = self.shared_path / "range_test.txt"
+        test_file.write_bytes(b"0123456789abcdefghij")
+
+        invalid_ranges = [
+            "bytes=abc-def",
+            "bytes=invalid",
+            "bytes=50-10",
+            "bytes=9999-10000",
+            "bytes=-10-5"
+        ]
+        for rng in invalid_ranges:
+            req = urllib.request.Request(f"{self.base_url}/api/download?path=range_test.txt")
+            req.add_header("Range", rng)
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req)
+            self.assertEqual(ctx.exception.code, 416, f"Failed for range header {rng}")
+
+    def test_delete_symlink_preserves_target_folder(self):
+        target_dir = self.shared_path / "real_dir"
+        target_dir.mkdir(exist_ok=True)
+        (target_dir / "preserve.txt").write_text("DO_NOT_DELETE", encoding="utf-8")
+
+        symlink_dir = self.shared_path / "symlink_dir"
+        if symlink_dir.exists():
+            symlink_dir.unlink()
+        try:
+            symlink_dir.symlink_to(target_dir)
+        except OSError:
+            return
+
+        del_url = f"{self.base_url}/api/delete?path=symlink_dir"
+        req = urllib.request.Request(del_url, data=b"", method="POST")
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 200)
+
+        # Symlink should be removed
+        self.assertFalse(symlink_dir.exists())
+        # Target directory and its file MUST remain intact
+        self.assertTrue(target_dir.exists())
+        self.assertEqual((target_dir / "preserve.txt").read_text(encoding="utf-8"), "DO_NOT_DELETE")
+
 if __name__ == "__main__":
     unittest.main()

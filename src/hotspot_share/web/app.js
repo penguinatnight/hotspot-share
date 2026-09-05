@@ -2488,12 +2488,21 @@ async function promptNewFolder() {
 async function deleteItem(encodedPath, isDir) {
   const name = decodeURIComponent(encodedPath).split('/').pop();
   if (confirm(`Delete ${isDir ? 'folder' : 'file'} "${name}"?`)) {
-    await fetch(`/api/delete?path=${encodedPath}`, { 
-      method: 'POST',
-      headers: authHeaders()
-    });
-    showToast('Deleted');
-    loadFiles();
+    try {
+      const res = await fetch(`/api/delete?path=${encodedPath}`, { 
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        showToast('Deleted');
+        loadFiles();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || 'Delete failed: permission denied');
+      }
+    } catch (e) {
+      showToast('Delete failed: network error');
+    }
   }
 }
 
@@ -2508,19 +2517,14 @@ async function confirmClearSharedFolder() {
         showToast('All files cleared');
         loadFiles();
         return;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || 'Clear failed: permission denied');
+        return;
       }
-    } catch (e) {}
-
-    for (const item of allItems) {
-      try {
-        await fetch(`/api/delete?path=${encodeURIComponent(item.path)}`, { 
-          method: 'POST',
-          headers: authHeaders()
-        });
-      } catch (e) {}
+    } catch (e) {
+      showToast('Clear failed: network error');
     }
-    showToast('Cleared directory');
-    loadFiles();
   }
 }
 
