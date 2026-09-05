@@ -186,6 +186,64 @@ class HotspotHandler(BaseHTTPRequestHandler):
         # Silence default HTTP server console noise
         pass
 
+    def get_allowed_hosts(self):
+        allowed = {'127.0.0.1', 'localhost', '::1', '0.0.0.0'}
+        if self.primary_ip:
+            allowed.add(self.primary_ip.lower())
+        try:
+            for ip in get_local_ips():
+                allowed.add(ip.lower())
+        except Exception:
+            pass
+        try:
+            hname = socket.gethostname().lower()
+            allowed.add(hname)
+            allowed.add(f"{hname}.local")
+        except Exception:
+            pass
+        return allowed
+
+    def is_valid_host(self):
+        host = self.headers.get('Host')
+        if not host:
+            return True
+        host_name = host.split(':')[0].strip().strip('[]').lower()
+        return host_name in self.get_allowed_hosts()
+
+    def is_trusted_origin(self):
+        origin = self.headers.get('Origin')
+        if not origin:
+            return True
+        try:
+            parsed = urllib.parse.urlparse(origin)
+            hostname = (parsed.hostname or '').strip().lower()
+            if not hostname:
+                return False
+            return hostname in self.get_allowed_hosts()
+        except Exception:
+            return False
+
+    def is_trusted_sec_fetch(self):
+        sec_site = self.headers.get('Sec-Fetch-Site')
+        if sec_site and sec_site.lower() == 'cross-site':
+            return False
+        return True
+
+    def do_OPTIONS(self):
+        if not self.is_valid_host() or not self.is_trusted_origin() or not self.is_trusted_sec_fetch():
+            self.send_response(403)
+            self.end_headers()
+            return
+        origin = self.headers.get('Origin')
+        self.send_response(204)
+        if origin and self.is_trusted_origin():
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Auth-Token, X-Upload-Offset, X-Total-Size, X-Conflict-Mode')
+        self.send_header('Access-Control-Max-Age', '86400')
+        self.end_headers()
+
     def send_json(self, data, status=200):
         try:
             body = json.dumps(data).encode('utf-8')
@@ -195,7 +253,11 @@ class HotspotHandler(BaseHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Expires', '0')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            origin = self.headers.get('Origin')
+            if origin and self.is_trusted_origin():
+                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Vary', 'Origin')
             self.end_headers()
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError, OSError):
@@ -259,6 +321,14 @@ class HotspotHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
+
+        if path.startswith('/api/'):
+            if not self.is_valid_host():
+                self.send_json({'status': 'error', 'message': 'Invalid Host header'}, status=403)
+                return
+            if not self.is_trusted_origin() or not self.is_trusted_sec_fetch():
+                self.send_json({'status': 'error', 'message': 'Cross-origin request forbidden'}, status=403)
+                return
 
         web_dir = get_web_dir()
 
@@ -559,6 +629,17 @@ class HotspotHandler(BaseHTTPRequestHandler):
             mime_type, _ = mimetypes.guess_type(str(target_path))
             mime_type = mime_type or 'application/octet-stream'
 
+            safe_inline_types = {
+                'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif',
+                'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
+                'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac',
+                'application/pdf', 'text/plain'
+            }
+            safe_filename = target_path.name.replace('"', '\\"')
+            is_inline_safe = mime_type.lower() in safe_inline_types and not target_path.name.lower().endswith(('.html', '.htm', '.svg', '.xml', '.xhtml'))
+            disposition = f'inline; filename="{safe_filename}"' if is_inline_safe else f'attachment; filename="{safe_filename}"'
+            eff_mime = mime_type if is_inline_safe else 'application/octet-stream'
+
             range_header = self.headers.get('Range')
             if range_header and range_header.startswith('bytes='):
                 ranges = range_header[6:].split('-')
@@ -572,9 +653,13 @@ class HotspotHandler(BaseHTTPRequestHandler):
 
                 length = end - start + 1
                 self.send_response(206)
-                self.send_header('Content-Type', mime_type)
+                self.send_header('Content-Type', eff_mime)
                 self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
                 self.send_header('Content-Length', str(length))
+                self.send_header('Content-Disposition', disposition)
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                if not is_inline_safe:
+                    self.send_header('Content-Security-Policy', "sandbox; default-src 'none'")
                 self.send_header('Accept-Ranges', 'bytes')
                 self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 self.end_headers()
@@ -590,8 +675,12 @@ class HotspotHandler(BaseHTTPRequestHandler):
                         remaining -= len(chunk)
             else:
                 self.send_response(200)
-                self.send_header('Content-Type', mime_type)
+                self.send_header('Content-Type', eff_mime)
                 self.send_header('Content-Length', str(file_size))
+                self.send_header('Content-Disposition', disposition)
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                if not is_inline_safe:
+                    self.send_header('Content-Security-Policy', "sandbox; default-src 'none'")
                 self.send_header('Accept-Ranges', 'bytes')
                 self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                 self.end_headers()
@@ -632,6 +721,14 @@ class HotspotHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
         t_stamp = time.strftime('%H:%M:%S')
+
+        if path.startswith('/api/'):
+            if not self.is_valid_host():
+                self.send_json({'status': 'error', 'message': 'Invalid Host header'}, status=403)
+                return
+            if not self.is_trusted_origin() or not self.is_trusted_sec_fetch():
+                self.send_json({'status': 'error', 'message': 'Cross-origin request forbidden'}, status=403)
+                return
 
         # Public auth verify endpoint
         if path == '/api/auth/verify':
@@ -778,11 +875,17 @@ class HotspotHandler(BaseHTTPRequestHandler):
             return
 
         elif path == '/api/hotspot/start':
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: Hotspot management is restricted to the host PC'}, status=403)
+                return
             res = start_hotspot()
             self.send_json(res)
             return
 
         elif path == '/api/hotspot/stop':
+            if not self.is_client_local():
+                self.send_json({'status': 'error', 'message': 'Security: Hotspot management is restricted to the host PC'}, status=403)
+                return
             res = stop_hotspot()
             self.send_json(res)
             return
@@ -817,9 +920,18 @@ class HotspotHandler(BaseHTTPRequestHandler):
             base = self.shared_dir.resolve()
             if target_dir:
                 clean_target_dir = os.path.normpath(urllib.parse.unquote(target_dir)).lstrip('/')
-                target_path = (base / clean_target_dir / clean_rel).resolve()
+                unresolved = base / clean_target_dir / clean_rel
             else:
-                target_path = (base / clean_rel).resolve()
+                unresolved = base / clean_rel
+
+            # If a symlink already exists in the destination path, remove it to prevent link-following attacks
+            if unresolved.is_symlink():
+                try:
+                    unresolved.unlink()
+                except Exception:
+                    pass
+
+            target_path = unresolved.resolve()
 
             if not (target_path == base or target_path.is_relative_to(base)):
                 target_path = base / os.path.basename(clean_rel)
@@ -840,6 +952,11 @@ class HotspotHandler(BaseHTTPRequestHandler):
                     target_path = cached
 
             target_path.parent.mkdir(parents=True, exist_ok=True)
+            if target_path.is_symlink():
+                try:
+                    target_path.unlink()
+                except Exception:
+                    pass
 
             try:
                 content_length = int(self.headers.get('Content-Length', 0))

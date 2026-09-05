@@ -46,13 +46,33 @@ static int check_socket(int port) {
 static char *get_runtime_json_path(void) {
     const char *xdg_runtime = getenv("XDG_RUNTIME_DIR");
     char *path = malloc(512);
+    if (!path) return NULL;
     if (xdg_runtime && strlen(xdg_runtime) > 0) {
         snprintf(path, 512, "%s/hotspot-share/server.json", xdg_runtime);
     } else {
-        const char *user = getenv("USER");
-        snprintf(path, 512, "/tmp/hotspot-share-runtime-%s/hotspot-share/server.json", user ? user : "default");
+        snprintf(path, 512, "/tmp/hotspot-share-runtime-%u/hotspot-share/server.json", (unsigned int)getuid());
     }
     return path;
+}
+
+static int is_hotspot_process(pid_t pid) {
+    if (pid <= 1 || pid == getpid()) return 0;
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char cmdline[512];
+    size_t n = fread(cmdline, 1, sizeof(cmdline) - 1, f);
+    fclose(f);
+    if (n <= 0) return 0;
+    cmdline[n] = '\0';
+    for (size_t i = 0; i < n; i++) {
+        if (cmdline[i] == '\0') cmdline[i] = ' ';
+    }
+    if (strstr(cmdline, "hotspot-share") != NULL || strstr(cmdline, "hotspot_share") != NULL) {
+        return 1;
+    }
+    return 0;
 }
 
 static int read_port_from_runtime(void) {
@@ -197,10 +217,10 @@ static void start_backend_server(int req_port) {
     // 2. If port is occupied by a stale zombie server (failed health check), terminate it
     if (check_socket(req_port)) {
         int stale_pid = read_pid_from_runtime();
-        if (stale_pid > 0 && stale_pid != getpid()) {
+        if (stale_pid > 0 && stale_pid != getpid() && is_hotspot_process(stale_pid)) {
             kill(stale_pid, SIGTERM);
             usleep(150000); // 150ms
-            if (check_socket(req_port)) {
+            if (check_socket(req_port) && is_hotspot_process(stale_pid)) {
                 kill(stale_pid, SIGKILL);
                 usleep(150000); // 150ms
             }
@@ -338,6 +358,26 @@ static gboolean on_load_failed(WebKitWebView *web_view, WebKitLoadEvent load_eve
     return FALSE;
 }
 
+static gboolean is_internal_server_uri(const gchar *uri) {
+    if (!uri) return FALSE;
+    if (server_url[0] && g_str_has_prefix(uri, server_url)) {
+        char next = uri[strlen(server_url)];
+        if (next == '\0' || next == '/' || next == '?' || next == '#') return TRUE;
+    }
+    char expected_prefix[64];
+    snprintf(expected_prefix, sizeof(expected_prefix), "http://127.0.0.1:%d", active_port);
+    if (g_str_has_prefix(uri, expected_prefix)) {
+        char next = uri[strlen(expected_prefix)];
+        if (next == '\0' || next == '/' || next == '?' || next == '#') return TRUE;
+    }
+    snprintf(expected_prefix, sizeof(expected_prefix), "http://localhost:%d", active_port);
+    if (g_str_has_prefix(uri, expected_prefix)) {
+        char next = uri[strlen(expected_prefix)];
+        if (next == '\0' || next == '/' || next == '?' || next == '#') return TRUE;
+    }
+    return FALSE;
+}
+
 static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *decision, WebKitPolicyDecisionType type, gpointer user_data) {
     if (type == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION || type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) {
         WebKitNavigationPolicyDecision *nav_decision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
@@ -345,7 +385,7 @@ static gboolean on_decide_policy(WebKitWebView *web_view, WebKitPolicyDecision *
         WebKitURIRequest *request = webkit_navigation_action_get_request(action);
         const gchar *uri = webkit_uri_request_get_uri(request);
         if (uri && (g_str_has_prefix(uri, "http://") || g_str_has_prefix(uri, "https://") || g_str_has_prefix(uri, "mailto:"))) {
-            if (!g_str_has_prefix(uri, server_url) && !g_str_has_prefix(uri, "http://127.0.0.1") && !g_str_has_prefix(uri, "http://localhost")) {
+            if (!is_internal_server_uri(uri)) {
                 gtk_show_uri_on_window(GTK_WINDOW(main_window), uri, GDK_CURRENT_TIME, NULL);
                 webkit_policy_decision_ignore(decision);
                 return TRUE;

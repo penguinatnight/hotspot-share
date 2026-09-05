@@ -1,5 +1,6 @@
 CC ?= gcc
-CFLAGS ?= -O2 -Wall -Wno-deprecated-declarations
+HARDENING_FLAGS ?= -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack
+CFLAGS ?= -O2 -Wall -Wno-deprecated-declarations $(HARDENING_FLAGS)
 PREFIX ?= /usr/local
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
