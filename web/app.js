@@ -2535,14 +2535,14 @@ async function promptNewFolder() {
 
 async function deleteItem(encodedPath, isDir) {
   const name = decodeURIComponent(encodedPath).split('/').pop();
-  if (confirm(`Delete ${isDir ? 'folder' : 'file'} "${name}"?`)) {
+  if (confirm(`Move ${isDir ? 'folder' : 'file'} "${name}" to Trash?`)) {
     try {
       const res = await fetch(`/api/delete?path=${encodedPath}`, { 
         method: 'POST',
         headers: authHeaders()
       });
       if (res.ok) {
-        showToast('Deleted');
+        showToast('Moved to Trash');
         loadFiles();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -2555,14 +2555,14 @@ async function deleteItem(encodedPath, isDir) {
 }
 
 async function confirmClearSharedFolder() {
-  if (confirm('Delete all files and folders in this directory?')) {
+  if (confirm('Move all files and folders in this directory to Trash?')) {
     try {
       const res = await fetch('/api/clear_all_files', {
         method: 'POST',
         headers: authHeaders()
       });
       if (res.ok) {
-        showToast('All files cleared');
+        showToast('All files moved to Trash');
         loadFiles();
         return;
       } else {

@@ -19,7 +19,7 @@ import re
 
 from .config import (
     get_web_dir, get_icon_file, get_default_share_dir,
-    write_runtime_info, clear_runtime_info
+    write_runtime_info, clear_runtime_info, get_user_home
 )
 from .qr import get_svg_qr, get_terminal_qr, get_wifi_qr_text, generate_qr_matrix
 from .devices import (
@@ -200,6 +200,72 @@ class BeamTracker:
             cls.dismissed.add(beam_id)
             if client_ip:
                 cls.dismissed.add((beam_id, client_ip))
+
+def safe_trash_item(target: Path) -> bool:
+    """
+    Safely move a file or directory to the user's Trash following the FreeDesktop Trash specification.
+    First attempts 'gio trash' for seamless desktop integration, then falls back to direct
+    FreeDesktop XDG Trash specification handling (~/.local/share/Trash), and lastly to unlink/rmtree
+    if trashing is completely unavailable.
+    """
+    try:
+        target = target.resolve()
+        if not target.exists():
+            return True
+
+        # 1. Try gio trash first (standard GNOME/FreeDesktop desktop integration)
+        try:
+            res = subprocess.run(
+                ["gio", "trash", str(target)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5
+            )
+            if res.returncode == 0 and not target.exists():
+                return True
+        except Exception:
+            pass
+
+        # 2. FreeDesktop XDG Trash Specification Fallback
+        try:
+            user_home = get_user_home()
+            trash_dir = user_home / ".local" / "share" / "Trash"
+            files_dir = trash_dir / "files"
+            info_dir = trash_dir / "info"
+            files_dir.mkdir(parents=True, exist_ok=True)
+            info_dir.mkdir(parents=True, exist_ok=True)
+
+            original_name = target.name
+            dest_path = files_dir / original_name
+            info_path = info_dir / f"{original_name}.trashinfo"
+
+            counter = 1
+            stem = target.stem if target.is_file() else target.name
+            suffix = target.suffix if target.is_file() else ""
+            while dest_path.exists() or info_path.exists():
+                new_name = f"{stem}.{counter}{suffix}"
+                dest_path = files_dir / new_name
+                info_path = info_dir / f"{new_name}.trashinfo"
+                counter += 1
+
+            now_str = time.strftime("%Y-%m-%dT%H:%M:%S")
+            escaped_orig_path = urllib.parse.quote(str(target))
+            info_content = f"[Trash Info]\nPath={escaped_orig_path}\nDeletionDate={now_str}\n"
+
+            info_path.write_text(info_content, encoding="utf-8")
+            shutil.move(str(target), str(dest_path))
+            return True
+        except Exception:
+            pass
+
+        # 3. Last-ditch fallback only if trashing fails completely
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+        return True
+    except Exception:
+        return False
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -1291,10 +1357,7 @@ class HotspotHandler(BaseHTTPRequestHandler):
             target = resolved_entry
             if target and target.exists() and target != base:
                 display_name = str(target.relative_to(base))
-                if target.is_dir():
-                    shutil.rmtree(target)
-                else:
-                    target.unlink()
+                safe_trash_item(target)
                 print(f" \033[90m{t_stamp}\033[0m  \033[31m[DELETE]    \033[0m {display_name}")
                 self.send_json({'status': 'ok'})
             else:
@@ -1309,10 +1372,10 @@ class HotspotHandler(BaseHTTPRequestHandler):
             if base.is_dir():
                 for item in list(base.iterdir()):
                     try:
-                        if item.is_symlink() or item.is_file():
+                        if item.is_symlink():
                             item.unlink()
-                        elif item.is_dir():
-                            shutil.rmtree(item)
+                        else:
+                            safe_trash_item(item)
                     except Exception:
                         pass
                 print(f" \033[90m{t_stamp}\033[0m  \033[31m[CLEAR]     \033[0m All shared files cleared")

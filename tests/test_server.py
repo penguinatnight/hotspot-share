@@ -259,5 +259,26 @@ class TestServer(unittest.TestCase):
             self.assertEqual(resp.status, 200)
             self.assertEqual(resp.read(), b"Microsoft Connect Test")
 
+    def test_clear_all_files_and_trash_safety(self):
+        # Create test files and folders to clear
+        file1 = self.shared_path / "file_to_clear.txt"
+        file1.write_text("sample content")
+        subfolder = self.shared_path / "folder_to_clear"
+        subfolder.mkdir(exist_ok=True)
+        (subfolder / "subfile.txt").write_text("subfile content")
+
+        self.assertTrue(file1.exists())
+        self.assertTrue(subfolder.exists())
+
+        clear_url = f"{self.base_url}/api/clear_all_files"
+        req_clear = urllib.request.Request(clear_url, method='POST')
+        with urllib.request.urlopen(req_clear) as resp:
+            self.assertEqual(resp.status, 200)
+            res = json.loads(resp.read().decode("utf-8"))
+            self.assertEqual(res.get("status"), "ok")
+
+        self.assertFalse(file1.exists())
+        self.assertFalse(subfolder.exists())
+
 if __name__ == "__main__":
     unittest.main()
